@@ -732,7 +732,7 @@ function MainApp({me,setMe,users,saveUsers,subs,saveSubs,tab,setTab,curWeek,wBon
     {id:"monitor", label:"📊 分析"},
     ...(me.isAdmin?[{id:"admin",label:"👑 管理"}]:[]),
   ];
-  const displayName = me.isAdmin ? "大C（管理者）" : `${me.name}・${me.realName||"?"}`;
+  const displayName = me.isAdmin ? "大C（管理者）" : `${me.name}・${me.squad||me.realName||""}`;
 
   return (
     <div>
@@ -874,7 +874,7 @@ function BoardTab({users, subs, curWeek}) {
                       <div key={u.id} style={{border:`3px solid ${color}`,padding:"12px 8px",background:"#fff",boxShadow:`3px 3px 0 ${color}`,textAlign:"center"}}>
                         <div style={{display:"flex",justifyContent:"center",marginBottom:4}}><CharAvatar charId={u.charId||"mario"} size={36}/></div>
                         <div style={{fontWeight:900,fontSize:14,color,marginBottom:2}}>{u.realName||u.name}</div>
-                        <div style={{fontSize:10,color:"#aaa",marginBottom:6}}>{u.name}</div>
+                        <div style={{fontSize:10,color:"#aaa",marginBottom:6}}>{u.squad||""}</div>
                         <div style={{fontFamily:"monospace",fontSize:24,fontWeight:900,color}}>{xp}</div>
                         <div style={{fontSize:11,color:"#aaa",marginTop:2}}>{cnt}筆</div>
                       </div>
@@ -1005,7 +1005,7 @@ function SubmitTab({me, onSubmit, curWeek, getBonus, showToast}) {
           <CharAvatar charId={me.charId||"mario"} size={42}/>
           <div>
             <div style={{fontWeight:900,fontSize:16}}>🎯 選擇任務加分</div>
-            <div style={{fontSize:12,color:"#888"}}>{me.name}・{me.realName||me.name}</div>
+            <div style={{fontSize:12,color:"#888"}}>{me.name}・{me.squad||""}</div>
           </div>
         </div>
 

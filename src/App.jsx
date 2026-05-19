@@ -169,6 +169,11 @@ export default function App() {
   useEffect(()=>{
     // 即時監聽 Firestore — 任何裝置寫入都會自動同步
     let initialised = false;
+    // 安全逾時：若 Firestore 8秒內未回應，強制顯示頁面
+    const safetyTimer = setTimeout(() => {
+      if (!initialised) { initialised = true; setLoaded(true); }
+    }, 8000);
+
     const unsubUsers = onSnapshot(USERS_DOC, snap => {
       if (snap.exists()) {
         const data = snap.data().data;
@@ -188,7 +193,7 @@ export default function App() {
       if (snap.exists()) setWeekBonuses(snap.data() || {});
     });
 
-    return () => { unsubUsers(); unsubSubs(); unsubBonuses(); };
+    return () => { clearTimeout(safetyTimer); unsubUsers(); unsubSubs(); unsubBonuses(); };
   },[]);
 
   const saveUsers = async u => { setUsers(u); await setDoc(USERS_DOC, { data: u }); };

@@ -257,7 +257,7 @@ export default function App() {
   };
 
   // 上傳任務
-  const handleSubmit = async (taskId, imgData, note) => {
+  const handleSubmit = async (taskId) => {
     const now = new Date();
     const day = now.getDay();
     const hour = now.getHours();
@@ -269,7 +269,7 @@ export default function App() {
     const task = TASKS.find(t=>t.id===taskId);
     const dynBonus = weekBonuses[week] !== undefined ? weekBonuses[week] : (WEEKS.find(w=>w.week===week)?.bonus ?? null);
     const xp = (dynBonus?.taskId===taskId) ? dynBonus.multiplier : task.xp;
-    const entry = { id:Date.now()+"", userId:me.id, taskId, week, ts:now.toISOString(), imgData, note, xp };
+    const entry = { id:Date.now()+"", userId:me.id, taskId, week, ts:now.toISOString(), xp };
     const next = [...subs, entry];
     await saveSubs(next);
     sfx.taskSfx(taskId);
@@ -980,33 +980,19 @@ function RankTab({users, subs, curWeek}) {
 // SUBMIT TAB
 // ══════════════════════════════════════════
 function SubmitTab({me, onSubmit, curWeek, getBonus, showToast}) {
-  const [taskId,setTaskId]   = useState("");
-  const [note,setNote]       = useState("");
-  const [imgData,setImgData] = useState(null);
-  const [imgPrev,setImgPrev] = useState(null);
-  const [busy,setBusy]       = useState(false);
-  const fileRef = useRef();
+  const [taskId,setTaskId] = useState("");
+  const [busy,setBusy]     = useState(false);
 
   const curBonus = getBonus(curWeek);
-  const task   = TASKS.find(t=>t.id===taskId);
-  const effXP  = task ? (curBonus?.taskId===taskId ? curBonus.multiplier : task.xp) : 0;
-  const isBonus = task && curBonus?.taskId===taskId;
-
-  const handleFile = e => {
-    const f = e.target.files[0];
-    if (!f) return;
-    if (f.size>3*1024*1024) { showToast("圖片請勿超過3MB","err"); return; }
-    const r = new FileReader();
-    r.onload = ev => { setImgData(ev.target.result); setImgPrev(ev.target.result); };
-    r.readAsDataURL(f);
-  };
+  const task     = TASKS.find(t=>t.id===taskId);
+  const effXP    = task ? (curBonus?.taskId===taskId ? curBonus.multiplier : task.xp) : 0;
+  const isBonus  = task && curBonus?.taskId===taskId;
 
   const submit = async () => {
     if (!taskId) { showToast("請選擇任務類型","err"); return; }
-    if (!imgData) { showToast("截圖為必填！","err"); return; }
     setBusy(true);
-    const ok = await onSubmit(taskId, imgData, note);
-    if (ok) { setTaskId(""); setNote(""); setImgData(null); setImgPrev(null); if(fileRef.current) fileRef.current.value=""; }
+    const ok = await onSubmit(taskId);
+    if (ok) setTaskId("");
     setBusy(false);
   };
 
@@ -1016,15 +1002,15 @@ function SubmitTab({me, onSubmit, curWeek, getBonus, showToast}) {
     <div>
       <div style={{background:"#fff",border:"3px solid #000",boxShadow:"5px 5px 0 #000",padding:20,marginBottom:14}}>
         <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:18}}>
-          <div style={{fontSize:38}}>{char.emoji}</div>
+          <CharAvatar charId={me.charId||"mario"} size={42}/>
           <div>
-            <div style={{fontWeight:900,fontSize:16}}>📤 上傳任務成果</div>
-            <div style={{fontSize:12,color:"#888"}}>{me.name}・{me.realName}</div>
+            <div style={{fontWeight:900,fontSize:16}}>🎯 選擇任務加分</div>
+            <div style={{fontSize:12,color:"#888"}}>{me.name}・{me.realName||me.name}</div>
           </div>
         </div>
 
         {/* 任務選擇 */}
-        <label style={{display:"block",fontWeight:700,fontSize:13,marginBottom:8}}>選擇任務類型 *</label>
+        <label style={{display:"block",fontWeight:700,fontSize:13,marginBottom:8}}>選擇任務類型</label>
         <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8,marginBottom:14}}>
           {TASKS.map(t=>{
             const b = curBonus?.taskId===t.id;
@@ -1032,13 +1018,14 @@ function SubmitTab({me, onSubmit, curWeek, getBonus, showToast}) {
             const sel = taskId===t.id;
             return (
               <button key={t.id} onClick={()=>setTaskId(t.id)}
-                style={{padding:"10px 8px",border:`3px solid ${sel?"#1A1A2E":"#ddd"}`,background:sel?"#1A1A2E":"#fff",
-                  color:sel?"#F8C500":"#000",cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:8,
+                style={{padding:"14px 10px",border:`3px solid ${sel?"#1A1A2E":"#ddd"}`,
+                  background:sel?"#1A1A2E":"#fff",color:sel?"#F8C500":"#000",
+                  cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:8,
                   boxShadow:sel?"3px 3px 0 #F8C500":"none",fontFamily:"'Noto Sans TC',sans-serif"}}>
-                <span style={{fontSize:20}}>{t.emoji}</span>
+                <span style={{fontSize:22}}>{t.emoji}</span>
                 <span>
                   <div style={{fontWeight:900,fontSize:13}}>{t.label}</div>
-                  <div style={{fontFamily:"monospace",fontSize:10,color:b?"#E52222":sel?"#F8C500":"#999"}}>
+                  <div style={{fontFamily:"monospace",fontSize:11,color:b?"#E52222":sel?"#F8C500":"#999"}}>
                     +{dx} XP{b?" 🔥加權":""}
                   </div>
                 </span>
@@ -1049,46 +1036,33 @@ function SubmitTab({me, onSubmit, curWeek, getBonus, showToast}) {
 
         {/* XP 預覽 */}
         {task && (
-          <div style={{background:isBonus?"#FFF0F0":"#F0FFF4",border:`2px solid ${isBonus?"#E52222":"#2DAD3F"}`,padding:"10px 14px",marginBottom:14,display:"flex",alignItems:"center",gap:12}}>
-            <div style={{fontFamily:"monospace",fontSize:30,fontWeight:900,color:isBonus?"#E52222":"#2DAD3F"}}>+{effXP}</div>
-            <div style={{fontSize:13}}><strong>{task.label}</strong>{isBonus&&<span style={{color:"#E52222",marginLeft:6}}>🔥 本週加權！</span>}</div>
+          <div style={{background:isBonus?"#FFF0F0":"#F0FFF4",border:`2px solid ${isBonus?"#E52222":"#2DAD3F"}`,
+            padding:"14px 18px",marginBottom:18,display:"flex",alignItems:"center",gap:14}}>
+            <div style={{fontFamily:"monospace",fontSize:36,fontWeight:900,color:isBonus?"#E52222":"#2DAD3F"}}>
+              +{effXP}
+            </div>
+            <div>
+              <div style={{fontSize:14,fontWeight:900}}>{task.label}</div>
+              {isBonus && <div style={{color:"#E52222",fontSize:12,fontWeight:700}}>🔥 本週加權任務！</div>}
+              <div style={{fontSize:12,color:"#888"}}>第 {curWeek} 週</div>
+            </div>
           </div>
         )}
 
-        {/* 截圖上傳 */}
-        <label style={{display:"block",fontWeight:700,fontSize:13,marginBottom:8}}>
-          截圖證明 * <span style={{fontWeight:400,color:"#888",fontSize:12}}>（必填才能得分）</span>
-        </label>
-        <div onClick={()=>fileRef.current?.click()}
-          style={{border:"3px dashed #999",padding:20,textAlign:"center",cursor:"pointer",background:"#F9F9F9",minHeight:110,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:8}}>
-          {imgPrev
-            ? <img src={imgPrev} alt="" style={{maxHeight:180,maxWidth:"100%",objectFit:"contain"}} />
-            : <div style={{color:"#aaa"}}><div style={{fontSize:40,marginBottom:6}}>📸</div><div style={{fontSize:13}}>點擊選取截圖</div></div>}
-        </div>
-        <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} style={{display:"none"}} />
-        {imgPrev && (
-          <button onClick={()=>{setImgData(null);setImgPrev(null);fileRef.current.value="";}}
-            style={{fontSize:12,padding:"3px 12px",border:"2px solid #ccc",background:"#fff",cursor:"pointer",marginBottom:10}}>
-            × 移除圖片
-          </button>
-        )}
-
-        {/* 備註 */}
-        <label style={{display:"block",fontWeight:700,fontSize:13,marginBottom:6}}>備註說明（選填）</label>
-        <textarea value={note} onChange={e=>setNote(e.target.value)} rows={3}
-          placeholder="例如：拜訪了舊同事，深聊3小時..." style={{width:"100%",padding:10,border:"3px solid #ccc",fontSize:14,resize:"vertical",boxSizing:"border-box",fontFamily:"inherit",marginBottom:14}} />
-
         <button onClick={submit} disabled={busy}
-          style={{width:"100%",background:busy?"#ccc":"#1A1A2E",color:"#F8C500",border:"3px solid #F8C500",padding:14,fontFamily:"monospace",fontSize:13,cursor:busy?"not-allowed":"pointer",fontWeight:900,boxShadow:busy?"none":"4px 4px 0 #F8C500"}}>
-          {busy?"⏳ 上傳中...":"▶ 提交任務成果"}
+          style={{width:"100%",background:busy?"#ccc":"#1A1A2E",color:"#F8C500",border:"3px solid #F8C500",
+            padding:16,fontFamily:"monospace",fontWeight:900,fontSize:16,cursor:busy?"default":"pointer",
+            boxShadow:busy?"none":"4px 4px 0 #F8C500",letterSpacing:1}}>
+          {busy?"⏳ 記錄中...":"▶ 確認加分！"}
         </button>
       </div>
       <div style={{background:"#FFF9E0",border:"3px solid #F8C500",padding:12,fontSize:13}}>
-        ⏰ 每週日 23:00 截止。逾時自動計入下一週成績。
+        ⏰ 每週日 22:59 截止，週日 23:00–24:00 為系統維護時間。
       </div>
     </div>
   );
 }
+
 
 // ══════════════════════════════════════════
 // HISTORY TAB

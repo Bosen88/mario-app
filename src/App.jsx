@@ -471,7 +471,7 @@ function RegisterScreen({users, squads, onDone, onBack, sfx, showToast}) {
             <label style={{display:"block",fontWeight:700,fontSize:13,marginBottom:6}}>帳號名稱（顯示在排行榜上）</label>
             <input value={name} onChange={e=>setName(e.target.value)}
               onKeyDown={e=>e.key==="Enter"&&goStep2()}
-              placeholder="例如：小明 / 怡方01" maxLength={12}
+              placeholder="例如：邱柏森" maxLength={12}
               style={{width:"100%",padding:10,border:"3px solid #000",fontSize:16,fontWeight:700,boxSizing:"border-box",marginBottom:16}}/>
             <label style={{display:"block",fontWeight:700,fontSize:13,marginBottom:6}}>設定密碼（至少4位）</label>
             <input type="password" value={pw1} onChange={e=>setPw1(e.target.value)}

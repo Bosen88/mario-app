@@ -1164,4 +1164,104 @@ function AdminTab({users, saveUsers, subs, saveSubs, weekBonuses, getBonus, save
         <div style={{background:"#fff",border:"3px solid #000",padding:20,boxShadow:"4px 4px 0 #000"}}>
           <div style={{fontWeight:900,fontSize:15,marginBottom:14}}>➕ 新增成員</div>
           <input value={nN} onChange={e=>setNN(e.target.value)} placeholder="小隊名稱（例：小明小C）" style={{display:"block",width:"100%",padding:10,border:"3px solid #000",marginBottom:10,fontSize:15,boxSizing:"border-box"}} />
-          <select value={nT} onChange={e=>setNT(e.target.value)} style={{display:"block",width:"100%",paddin
+          <select value={nT} onChange={e=>setNT(e.target.value)} style={{display:"block",width:"100%",padding:10,border:"3px solid #000",marginBottom:14,fontSize:15}}>
+            <option value="red">🔴 瑪利歐紅隊</option>
+            <option value="green">🟢 路易吉綠隊</option>
+          </select>
+          <p style={{fontSize:12,color:"#888",marginBottom:12}}>✅ 新成員首次登入時，系統會引導他設定真實姓名、角色和密碼。</p>
+          <button onClick={addUser} style={{width:"100%",background:"#2DAD3F",color:"#fff",border:"3px solid #000",padding:12,cursor:"pointer",fontWeight:900,fontSize:14,boxShadow:"3px 3px 0 #000"}}>➕ 新增成員</button>
+        </div>
+      )}
+
+      {sub==="subs" && (
+        <div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+            <div style={{fontWeight:700}}>共 {subs.length} 筆記錄</div>
+            <button onClick={clearSubs} style={{padding:"6px 14px",background:"#E52222",color:"#fff",border:"2px solid #000",cursor:"pointer",fontWeight:700,fontSize:12}}>⚠️ 清空全部</button>
+          </div>
+          <HistoryTab me={ADMIN_ACCOUNT} users={users} subs={subs} saveSubs={saveSubs} showToast={showToast} sfx={{error:()=>{}}} />
+        </div>
+      )}
+
+      {sub==="rng" && (
+        <div>
+          <div style={{background:"#fff",border:"3px solid #000",padding:16,boxShadow:"4px 4px 0 #000",marginBottom:16}}>
+            <div style={{fontWeight:900,fontSize:15,marginBottom:14}}>🎲 RNG Buff 隨機加權系統</div>
+            <div style={{fontSize:12,color:"#888",marginBottom:16}}>每週隨機抽選一個任務項目作為當週加分項目。按下「擲骰」後選擇要套用的週次。</div>
+
+            <div style={{marginBottom:16}}>
+              <div style={{fontWeight:700,fontSize:13,marginBottom:8}}>📅 各週加權狀態</div>
+              {WEEKS.map(w => {
+                const b = getBonus(w.week);
+                const task = b ? TASKS.find(t=>t.id===b.taskId) : null;
+                return (
+                  <div key={w.week} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",border:"2px solid #ddd",marginBottom:6,background: b ? "#FFF9E0" : "#f9f9f9"}}>
+                    <div style={{fontWeight:700,minWidth:30,fontSize:13}}>W{w.week}</div>
+                    <div style={{flex:1,fontSize:12}}>
+                      {b ? (
+                        <span style={{color:"#E07800",fontWeight:700}}>{task?.emoji} {b.label}</span>
+                      ) : (
+                        <span style={{color:"#aaa"}}>（無加權）</span>
+                      )}
+                    </div>
+                    {b && (
+                      <button onClick={()=>clearBonus(w.week)} style={{padding:"3px 8px",border:"2px solid #E52222",color:"#E52222",background:"#fff",cursor:"pointer",fontSize:11,fontWeight:700}}>清除</button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div style={{textAlign:"center",marginBottom:16}}>
+              <button onClick={doRng} disabled={rngAnim} style={{padding:"14px 40px",background: rngAnim ? "#999" : "#1A1A2E",color:"#F8C500",border:"3px solid #000",cursor: rngAnim ? "not-allowed" : "pointer",fontWeight:900,fontSize:18,boxShadow:"4px 4px 0 #000",letterSpacing:2}}>
+                {rngAnim ? "🎰 擲骰中…" : "🎲 擲骰！"}
+              </button>
+            </div>
+
+            {rngResult && (
+              <div style={{background: rngAnim ? "#1A1A2E" : "#FFF9E0",border:"3px solid #F8C500",padding:16,boxShadow:"4px 4px 0 #F8C500",marginBottom:16,textAlign:"center"}}>
+                <div style={{fontSize:28,marginBottom:4}}>{rngResult.emoji}</div>
+                <div style={{fontWeight:900,fontSize:20,color: rngAnim ? "#F8C500" : "#E07800",marginBottom:4}}>{rngResult.taskLabel}</div>
+                <div style={{fontSize:15,fontWeight:700,marginBottom: rngAnim ? 0 : 14}}>每份 +{rngResult.multiplier} 分</div>
+                {!rngAnim && (
+                  <div>
+                    <div style={{fontSize:12,color:"#888",marginBottom:10}}>套用到哪一週？</div>
+                    <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
+                      {WEEKS.map(w => (
+                        <button key={w.week} onClick={()=>confirmBonus(w.week)} disabled={rngSaving} style={{padding:"8px 14px",background:"#2DAD3F",color:"#fff",border:"3px solid #000",cursor: rngSaving ? "not-allowed" : "pointer",fontWeight:900,fontSize:13,boxShadow:"3px 3px 0 #000"}}>
+                          W{w.week}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════
+// 共用元件
+// ══════════════════════════════════════════
+function Card({title, children}) {
+  return (
+    <div style={{background:"#fff",border:"3px solid #000",boxShadow:"5px 5px 0 #000",marginBottom:16,overflow:"hidden"}}>
+      <div style={{background:"#1A1A2E",color:"#F8C500",padding:"10px 16px",fontWeight:900,fontSize:15}}>{title}</div>
+      <div style={{padding:16}}>{children}</div>
+    </div>
+  );
+}
+
+function Toast({msg, type}) {
+  const bg = type==="err" ? "#E52222" : "#2DAD3F";
+  return (
+    <div style={{position:"fixed",top:76,left:"50%",transform:"translateX(-50%)",background:bg,color:"#fff",padding:"12px 24px",border:"3px solid #000",boxShadow:"4px 4px 0 #000",zIndex:99999,fontWeight:900,fontSize:14,whiteSpace:"nowrap",animation:"tin .3s ease",pointerEvents:"none"}}>
+      {msg}
+      <style>{`@keyframes tin{from{opacity:0;transform:translateX(-50%) translateY(-14px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}`}</style>
+    </div>
+  );
+}

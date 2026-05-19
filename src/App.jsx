@@ -3,8 +3,9 @@ import { db } from "./firebase";
 import { doc, setDoc, onSnapshot } from "firebase/firestore";
 
 // ── Firestore 文件參照 ──
-const USERS_DOC = doc(db, "appdata", "mv2_users");
-const SUBS_DOC  = doc(db, "appdata", "mv2_subs");
+const USERS_DOC  = doc(db, "appdata", "mv2_users");
+const SUBS_DOC   = doc(db, "appdata", "mv2_subs");
+const BONUS_DOC  = doc(db, "appdata", "mv2_bonuses");
 
 // ══════════════════════════════════════════
 // 常數定義
@@ -155,13 +156,14 @@ function useSfx() {
 // 主 App
 // ══════════════════════════════════════════
 export default function App() {
-  const [screen, setScreen]   = useState("press");
-  const [users, setUsers]     = useState(SEED_MEMBERS);
-  const [subs, setSubs]       = useState([]);
-  const [me, setMe]           = useState(null);
-  const [tab, setTab]         = useState("board");
-  const [toast, setToast]     = useState(null);
-  const [loaded, setLoaded]   = useState(false);
+  const [screen, setScreen]       = useState("press");
+  const [users, setUsers]         = useState(SEED_MEMBERS);
+  const [subs, setSubs]           = useState([]);
+  const [weekBonuses, setWeekBonuses] = useState({});
+  const [me, setMe]               = useState(null);
+  const [tab, setTab]             = useState("board");
+  const [toast, setToast]         = useState(null);
+  const [loaded, setLoaded]       = useState(false);
   const sfx = useSfx();
 
   useEffect(()=>{
@@ -182,11 +184,20 @@ export default function App() {
       }
     });
 
-    return () => { unsubUsers(); unsubSubs(); };
+    const unsubBonuses = onSnapshot(BONUS_DOC, snap => {
+      if (snap.exists()) setWeekBonuses(snap.data() || {});
+    });
+
+    return () => { unsubUsers(); unsubSubs(); unsubBonuses(); };
   },[]);
 
   const saveUsers = async u => { setUsers(u); await setDoc(USERS_DOC, { data: u }); };
   const saveSubs  = async s => { setSubs(s);  await setDoc(SUBS_DOC,  { data: s }); };
+  const saveWeekBonus = async (week, bonus) => {
+    const next = { ...weekBonuses, [week]: bonus };
+    setWeekBonuses(next);
+    await setDoc(BONUS_DOC, next);
+  };
 
   const showToast = (msg, type="ok") => {
     setToast({msg,type});
@@ -227,8 +238,8 @@ export default function App() {
     const now = new Date();
     const week = getSubmitWeek(now.toISOString());
     const task = TASKS.find(t=>t.id===taskId);
-    const wInfo = WEEKS.find(w=>w.week===week);
-    const xp = (wInfo?.bonus?.taskId===taskId) ? wInfo.bonus.multiplier : task.xp;
+    const dynBonus = weekBonuses[week] !== undefined ? weekBonuses[week] : (WEEKS.find(w=>w.week===week)?.bonus ?? null);
+    const xp = (dynBonus?.taskId===taskId) ? dynBonus.multiplier : task.xp;
     const entry = { id:Date.now()+"", userId:me.id, taskId, week, ts:now.toISOString(), imgData, note, xp };
     const next = [...subs, entry];
     await saveSubs(next);
@@ -238,7 +249,8 @@ export default function App() {
   };
 
   const curWeek = getCurrentWeek();
-  const wBonus  = WEEKS.find(w=>w.week===curWeek)?.bonus;
+  const getBonus = w => weekBonuses[w] !== undefined ? weekBonuses[w] : (WEEKS.find(x=>x.week===w)?.bonus ?? null);
+  const wBonus  = getBonus(curWeek);
 
   if (!loaded) return (
     <div style={{height:"100vh",background:"#1A1A2E",display:"flex",alignItems:"center",justifyContent:"center"}}>
@@ -264,6 +276,7 @@ export default function App() {
           subs={subs} saveSubs={saveSubs}
           tab={tab} setTab={setTab}
           curWeek={curWeek} wBonus={wBonus}
+          weekBonuses={weekBonuses} getBonus={getBonus} saveWeekBonus={saveWeekBonus}
           onSubmit={handleSubmit}
           onLogout={()=>{setScreen("login");setMe(null);}}
           showToast={showToast} sfx={sfx}
@@ -511,7 +524,7 @@ function FirstSetup({user, users, onDone, sfx, showToast}) {
 // ══════════════════════════════════════════
 // MAIN APP
 // ══════════════════════════════════════════
-function MainApp({me,setMe,users,saveUsers,subs,saveSubs,tab,setTab,curWeek,wBonus,onSubmit,onLogout,showToast,sfx}) {
+function MainApp({me,setMe,users,saveUsers,subs,saveSubs,tab,setTab,curWeek,wBonus,weekBonuses,getBonus,saveWeekBonus,onSubmit,onLogout,showToast,sfx}) {
   const char = getChar(me.charId||"mario");
   const tabs = [
     {id:"board",  label:"🏆 戰況"},
@@ -562,11 +575,11 @@ function MainApp({me,setMe,users,saveUsers,subs,saveSubs,tab,setTab,curWeek,wBon
       <div style={{maxWidth:920,margin:"0 auto",padding:"18px 14px 80px"}}>
         {tab==="board"   && <BoardTab   users={users} subs={subs} curWeek={curWeek} />}
         {tab==="rank"    && <RankTab    users={users} subs={subs} curWeek={curWeek} />}
-        {tab==="submit"  && <SubmitTab  me={me} onSubmit={onSubmit} curWeek={curWeek} showToast={showToast} />}
+        {tab==="submit"  && <SubmitTab  me={me} onSubmit={onSubmit} curWeek={curWeek} getBonus={getBonus} showToast={showToast} />}
         {tab==="history" && <HistoryTab me={me} users={users} subs={subs} saveSubs={saveSubs} showToast={showToast} sfx={sfx} />}
         {tab==="rules"   && <RulesTab   curWeek={curWeek} />}
         {tab==="manual"  && <ManualTab />}
-        {tab==="admin"   && me.isAdmin && <AdminTab users={users} saveUsers={saveUsers} subs={subs} saveSubs={saveSubs} showToast={showToast} sfx={sfx} />}
+        {tab==="admin"   && me.isAdmin && <AdminTab users={users} saveUsers={saveUsers} subs={subs} saveSubs={saveSubs} weekBonuses={weekBonuses} getBonus={getBonus} saveWeekBonus={saveWeekBonus} showToast={showToast} sfx={sfx} />}
       </div>
     </div>
   );
@@ -759,7 +772,7 @@ function RankTab({users, subs, curWeek}) {
 // ══════════════════════════════════════════
 // SUBMIT TAB
 // ══════════════════════════════════════════
-function SubmitTab({me, onSubmit, curWeek, showToast}) {
+function SubmitTab({me, onSubmit, curWeek, getBonus, showToast}) {
   const [taskId,setTaskId]   = useState("");
   const [note,setNote]       = useState("");
   const [imgData,setImgData] = useState(null);
@@ -767,10 +780,10 @@ function SubmitTab({me, onSubmit, curWeek, showToast}) {
   const [busy,setBusy]       = useState(false);
   const fileRef = useRef();
 
-  const wInfo  = WEEKS.find(w=>w.week===curWeek);
+  const curBonus = getBonus(curWeek);
   const task   = TASKS.find(t=>t.id===taskId);
-  const effXP  = task ? (wInfo?.bonus?.taskId===taskId ? wInfo.bonus.multiplier : task.xp) : 0;
-  const isBonus = task && wInfo?.bonus?.taskId===taskId;
+  const effXP  = task ? (curBonus?.taskId===taskId ? curBonus.multiplier : task.xp) : 0;
+  const isBonus = task && curBonus?.taskId===taskId;
 
   const handleFile = e => {
     const f = e.target.files[0];
@@ -807,8 +820,8 @@ function SubmitTab({me, onSubmit, curWeek, showToast}) {
         <label style={{display:"block",fontWeight:700,fontSize:13,marginBottom:8}}>選擇任務類型 *</label>
         <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8,marginBottom:14}}>
           {TASKS.map(t=>{
-            const b = wInfo?.bonus?.taskId===t.id;
-            const dx = b ? wInfo.bonus.multiplier : t.xp;
+            const b = curBonus?.taskId===t.id;
+            const dx = b ? curBonus.multiplier : t.xp;
             const sel = taskId===t.id;
             return (
               <button key={t.id} onClick={()=>setTaskId(t.id)}
@@ -1026,11 +1039,15 @@ function ManualTab() {
 // ══════════════════════════════════════════
 // ADMIN TAB
 // ══════════════════════════════════════════
-function AdminTab({users, saveUsers, subs, saveSubs, showToast, sfx}) {
+function AdminTab({users, saveUsers, subs, saveSubs, weekBonuses, getBonus, saveWeekBonus, showToast, sfx}) {
   const [sub, setSub] = useState("members");
   const [edit, setEdit] = useState(null);
   const [eN,setEN]=useState(""); const [eRN,setERN]=useState(""); const [eT,setET]=useState(""); const [ePw,setEPw]=useState("");
   const [nN,setNN]=useState(""); const [nT,setNT]=useState("red"); const [nPw,setNPw]=useState("1234");
+  // RNG Buff states
+  const [rngResult, setRngResult] = useState(null);
+  const [rngAnim, setRngAnim] = useState(false);
+  const [rngSaving, setRngSaving] = useState(false);
 
   const startEdit = u => { setEdit(u); setEN(u.name); setERN(u.realName||""); setET(u.team); setEPw(""); };
   const saveEdit = async () => {
@@ -1058,7 +1075,41 @@ function AdminTab({users, saveUsers, subs, saveSubs, showToast, sfx}) {
     await saveSubs([]); sfx.error(); showToast("已清空","err");
   };
 
-  const adTabs = [{id:"members",label:"成員管理"},{id:"add",label:"新增成員"},{id:"subs",label:"所有記錄"}];
+  // RNG helpers
+  const MULTIPLIERS = [3, 4, 5, 6, 7, 8, 10];
+  const doRng = () => {
+    setRngAnim(true); setRngResult(null);
+    let count = 0;
+    const interval = setInterval(() => {
+      const t = TASKS[Math.floor(Math.random()*TASKS.length)];
+      const m = MULTIPLIERS[Math.floor(Math.random()*MULTIPLIERS.length)];
+      setRngResult({ taskId:t.id, multiplier:m, label:`${t.label}每份+${m}分`, taskLabel:t.label, emoji:t.emoji });
+      count++;
+      if (count >= 18) { clearInterval(interval); setRngAnim(false); }
+    }, 80);
+  };
+  const confirmBonus = async (targetWeek) => {
+    if (!rngResult) return;
+    setRngSaving(true);
+    const bonus = { taskId: rngResult.taskId, multiplier: rngResult.multiplier, label: rngResult.label };
+    await saveWeekBonus(targetWeek, bonus);
+    sfx.levelUp(); showToast(`✅ W${targetWeek} 加權已設定：${bonus.label}`);
+    setRngResult(null); setRngSaving(false);
+  };
+  const clearBonus = async (targetWeek) => {
+    await saveWeekBonus(targetWeek, null);
+    sfx.error(); showToast(`W${targetWeek} 加權已清除`, "err");
+  };
+  const curWeek = (() => {
+    const now = new Date();
+    for (const w of WEEKS) {
+      if (now >= new Date(w.start+"T00:00:00") && now <= new Date(w.end+"T23:00:00")) return w.week;
+    }
+    return WEEKS.length;
+  })();
+  const nextWeek = Math.min(curWeek + 1, WEEKS.length);
+
+  const adTabs = [{id:"members",label:"成員管理"},{id:"add",label:"新增成員"},{id:"subs",label:"所有記錄"},{id:"rng",label:"🎲 RNG Buff"}];
   return (
     <div>
       <div style={{background:"#E52222",color:"#fff",border:"3px solid #000",padding:"10px 16px",marginBottom:14,fontWeight:900}}>👑 管理者後台 — 謹慎操作</div>
@@ -1113,47 +1164,4 @@ function AdminTab({users, saveUsers, subs, saveSubs, showToast, sfx}) {
         <div style={{background:"#fff",border:"3px solid #000",padding:20,boxShadow:"4px 4px 0 #000"}}>
           <div style={{fontWeight:900,fontSize:15,marginBottom:14}}>➕ 新增成員</div>
           <input value={nN} onChange={e=>setNN(e.target.value)} placeholder="小隊名稱（例：小明小C）" style={{display:"block",width:"100%",padding:10,border:"3px solid #000",marginBottom:10,fontSize:15,boxSizing:"border-box"}} />
-          <select value={nT} onChange={e=>setNT(e.target.value)} style={{display:"block",width:"100%",padding:10,border:"3px solid #000",marginBottom:14,fontSize:15}}>
-            <option value="red">🔴 瑪利歐紅隊</option>
-            <option value="green">🟢 路易吉綠隊</option>
-          </select>
-          <p style={{fontSize:12,color:"#888",marginBottom:12}}>✅ 新成員首次登入時，系統會引導他設定真實姓名、角色和密碼。</p>
-          <button onClick={addUser} style={{width:"100%",background:"#2DAD3F",color:"#fff",border:"3px solid #000",padding:12,cursor:"pointer",fontWeight:900,fontSize:14,boxShadow:"3px 3px 0 #000"}}>➕ 新增成員</button>
-        </div>
-      )}
-
-      {sub==="subs" && (
-        <div>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-            <div style={{fontWeight:700}}>共 {subs.length} 筆記錄</div>
-            <button onClick={clearSubs} style={{padding:"6px 14px",background:"#E52222",color:"#fff",border:"2px solid #000",cursor:"pointer",fontWeight:700,fontSize:12}}>⚠️ 清空全部</button>
-          </div>
-          <HistoryTab me={ADMIN_ACCOUNT} users={users} subs={subs} saveSubs={saveSubs} showToast={showToast} sfx={{error:()=>{}}} />
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════
-// 共用元件
-// ══════════════════════════════════════════
-function Card({title, children}) {
-  return (
-    <div style={{background:"#fff",border:"3px solid #000",boxShadow:"5px 5px 0 #000",marginBottom:16,overflow:"hidden"}}>
-      <div style={{background:"#1A1A2E",color:"#F8C500",padding:"10px 16px",fontWeight:900,fontSize:15}}>{title}</div>
-      <div style={{padding:16}}>{children}</div>
-    </div>
-  );
-}
-
-function Toast({msg, type}) {
-  const bg = type==="err" ? "#E52222" : "#2DAD3F";
-  return (
-    <div style={{position:"fixed",top:76,left:"50%",transform:"translateX(-50%)",background:bg,color:"#fff",padding:"12px 24px",border:"3px solid #000",boxShadow:"4px 4px 0 #000",zIndex:99999,fontWeight:900,fontSize:14,whiteSpace:"nowrap",animation:"tin .3s ease",pointerEvents:"none"}}>
-      {msg}
-      <style>{`@keyframes tin{from{opacity:0;transform:translateX(-50%) translateY(-14px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}`}</style>
-    </div>
-  );
-}
-
+          <select value={nT} onChange={e=>setNT(e.target.value)} style={{display:"block",width:"100%",paddin

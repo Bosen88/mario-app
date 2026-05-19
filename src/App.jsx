@@ -77,6 +77,12 @@ const SEED_MEMBERS = [
   { id:"u7", name:"怡雯小C", team:"green", password:"",  charId:"", setupDone:false, realName:"" },
 ];
 
+// 各隊小隊清單（報名時選擇）
+const SQUADS = {
+  red:   ["國棟小C","惠純小C","欽賢小C","怡方小C"],
+  green: ["麗姣小C","阿幸小C","怡雯小C"],
+};
+
 // ══════════════════════════════════════════
 // 工具函式
 // ══════════════════════════════════════════
@@ -210,16 +216,13 @@ export default function App() {
   };
 
   // 登入
-  const handleLogin = (uid, pw) => {
-    if (uid==="admin" && pw===ADMIN_ACCOUNT.password) {
+  const handleLogin = (name, pw) => {
+    if (name.toLowerCase()==="admin" && pw===ADMIN_ACCOUNT.password) {
       setMe(ADMIN_ACCOUNT); sfx.login(); setScreen("main"); setTab("board"); return;
     }
-    const u = users.find(x=>x.id===uid);
-    if (!u) { sfx.error(); showToast("找不到此帳號","err"); return; }
-    // 尚未設定密碼 → 進首次設定流程
-    if (!u.setupDone) {
-      setMe(u); sfx.select(); setScreen("setup"); return;
-    }
+    const u = users.find(x=>x.name===name || x.id===name);
+    if (!u) { sfx.error(); showToast("找不到此帳號，請確認名稱","err"); return; }
+    if (!u.setupDone) { setMe(u); sfx.select(); setScreen("setup"); return; }
     if (u.password !== pw) { sfx.error(); showToast("密碼錯誤！","err"); return; }
     setMe(u); sfx.login(); setScreen("main"); setTab("board");
   };
@@ -236,6 +239,21 @@ export default function App() {
     setTab("board");
     // 背景儲存
     saveUsers(next);
+  };
+
+  // 首次註冊
+  const handleRegister = async ({name, team, squad, charId, password}) => {
+    if (users.find(u=>u.name===name)) { sfx.error(); showToast("此帳號名稱已被使用","err"); return false; }
+    const id = "u"+Date.now();
+    const newUser = { id, name, realName:name, team, squad, charId, password, setupDone:true };
+    const next = [...users, newUser];
+    await saveUsers(next);
+    setMe(newUser);
+    sfx.levelUp();
+    showToast(`🎮 歡迎加入，${name}！`,"ok");
+    setScreen("main");
+    setTab("board");
+    return true;
   };
 
   // 上傳任務
@@ -275,8 +293,10 @@ export default function App() {
 
       {toast && <Toast msg={toast.msg} type={toast.type} />}
 
-      {screen==="press" && <PressStart onStart={()=>{sfx.select();setScreen("login");}} />}
-      {screen==="login" && <LoginScreen users={users} onLogin={handleLogin} showToast={showToast} sfx={sfx} />}
+      {screen==="press"    && <PressStart onStart={()=>{sfx.select();setScreen("choice");}} />}
+      {screen==="choice"   && <LoginChoiceScreen onRegister={()=>setScreen("register")} onLogin={()=>setScreen("login")} />}
+      {screen==="register" && <RegisterScreen users={users} squads={SQUADS} onDone={handleRegister} onBack={()=>setScreen("choice")} sfx={sfx} showToast={showToast} />}
+      {screen==="login"    && <LoginScreen onLogin={handleLogin} onBack={()=>setScreen("choice")} showToast={showToast} sfx={sfx} />}
       {screen==="setup" && me && (
         <FirstSetup user={me} users={users} onDone={handleSetupDone} sfx={sfx} showToast={showToast} />
       )}
@@ -289,7 +309,7 @@ export default function App() {
           curWeek={curWeek} wBonus={wBonus}
           weekBonuses={weekBonuses} getBonus={getBonus} saveWeekBonus={saveWeekBonus}
           onSubmit={handleSubmit}
-          onLogout={()=>{setScreen("login");setMe(null);}}
+          onLogout={()=>{setScreen("choice");setMe(null);}}
           showToast={showToast} sfx={sfx}
         />
       )}
@@ -324,68 +344,233 @@ function PressStart({onStart}) {
 // ══════════════════════════════════════════
 // LOGIN
 // ══════════════════════════════════════════
-function LoginScreen({users, onLogin, showToast, sfx}) {
-  const [selId,setSelId]=useState("");
-  const [pw,setPw]=useState("");
-  const selUser = users.find(u=>u.id===selId);
-  const isFirstTime = selUser && !selUser.setupDone;
 
+// ══════════════════════════════════════════
+// 登入方式選擇
+// ══════════════════════════════════════════
+function LoginChoiceScreen({onRegister, onLogin}) {
   return (
-    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <div style={{background:"#fff",border:"3px solid #000",boxShadow:"8px 8px 0 #000",padding:"32px 26px",maxWidth:420,width:"100%"}}>
-        <div style={{textAlign:"center",marginBottom:22}}>
-          <div style={{fontSize:44,marginBottom:8}}>🔐</div>
-          <div style={{fontFamily:"monospace",fontWeight:900,fontSize:13,color:"#1A1A2E"}}>SELECT YOUR CHARACTER</div>
-        </div>
-
-        {/* 角色選擇 */}
-        <label style={{display:"block",fontWeight:700,fontSize:13,marginBottom:6}}>選擇你的小隊角色</label>
-        <select value={selId} onChange={e=>{setSelId(e.target.value);sfx.select();}}
-          style={{width:"100%",padding:10,border:"3px solid #000",fontSize:15,fontWeight:700,background:"#F5F0E8",marginBottom:14}}>
-          <option value="">── 選擇角色 ──</option>
-          <option value="admin">👑 大C（管理者）</option>
-          <optgroup label="🔴 瑪利歐紅隊">
-            {users.filter(u=>u.team==="red").map(u=>(
-              <option key={u.id} value={u.id}>
-                {u.setupDone ? "✅ " : "❓ "}{u.name}{u.realName?" ("+u.realName+")":""}
-              </option>
-            ))}
-          </optgroup>
-          <optgroup label="🟢 路易吉綠隊">
-            {users.filter(u=>u.team==="green").map(u=>(
-              <option key={u.id} value={u.id}>
-                {u.setupDone && u.charId ? getChar(u.charId).emoji+" " : "❓ "}{u.name}{u.realName?" ("+u.realName+")":""}
-              </option>
-            ))}
-          </optgroup>
-        </select>
-
-        {/* 首次提示 */}
-        {isFirstTime && (
-          <div style={{background:"#FFF9E0",border:"2px solid #F8C500",padding:"10px 14px",marginBottom:14,fontSize:13,fontWeight:700}}>
-            🎮 首次登入！點擊下方按鈕進行角色設定
-          </div>
-        )}
-
-        {/* 密碼 */}
-        {!isFirstTime && (
-          <div style={{marginBottom:16}}>
-            <label style={{display:"block",fontWeight:700,fontSize:13,marginBottom:6}}>密碼</label>
-            <input type="password" value={pw} onChange={e=>setPw(e.target.value)}
-              onKeyDown={e=>e.key==="Enter"&&onLogin(selId,pw)}
-              placeholder="輸入密碼" style={{width:"100%",padding:10,border:"3px solid #000",fontSize:15,boxSizing:"border-box"}} />
-          </div>
-        )}
-
-        <button onClick={()=>onLogin(selId,pw)}
-          style={{width:"100%",background:"#1A1A2E",color:"#F8C500",border:"3px solid #F8C500",padding:14,fontFamily:"monospace",fontSize:13,cursor:"pointer",fontWeight:900,boxShadow:"4px 4px 0 #F8C500"}}>
-          {isFirstTime ? "▶ 開始首次設定" : "▶ 進入戰場"}
+    <div style={{position:"fixed",inset:0,background:"#1A1A2E",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div style={{background:"#fff",border:"3px solid #F8C500",boxShadow:"8px 8px 0 #F8C500",padding:"36px 28px",maxWidth:380,width:"100%",textAlign:"center"}}>
+        <div style={{fontSize:48,marginBottom:10}}>🎮</div>
+        <h2 style={{fontFamily:"monospace",fontWeight:900,fontSize:20,marginBottom:6,color:"#1A1A2E",letterSpacing:1}}>PLAYER SELECT</h2>
+        <p style={{fontSize:13,color:"#666",marginBottom:28,lineHeight:1.7}}>第一次來？先完成註冊設定！<br/>已有帳號直接進入戰場！</p>
+        <button onClick={onRegister}
+          style={{width:"100%",background:"#E52222",color:"#fff",border:"3px solid #000",
+            padding:"16px 0",fontFamily:"monospace",fontWeight:900,fontSize:16,cursor:"pointer",
+            boxShadow:"4px 4px 0 #000",marginBottom:14,letterSpacing:1}}>
+          🆕 首次註冊
         </button>
-
+        <button onClick={onLogin}
+          style={{width:"100%",background:"#1A1A2E",color:"#F8C500",border:"3px solid #F8C500",
+            padding:"16px 0",fontFamily:"monospace",fontWeight:900,fontSize:16,cursor:"pointer",
+            boxShadow:"4px 4px 0 #F8C500",letterSpacing:1}}>
+          🔑 直接登入
+        </button>
       </div>
     </div>
   );
 }
+
+// ══════════════════════════════════════════
+// 登入（已有帳號）
+// ══════════════════════════════════════════
+function LoginScreen({onLogin, onBack, showToast, sfx}) {
+  const [name,setName]=useState("");
+  const [pw,setPw]=useState("");
+  const go=()=>onLogin(name.trim(),pw);
+  return (
+    <div style={{position:"fixed",inset:0,background:"#1A1A2E",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div style={{background:"#fff",border:"3px solid #000",boxShadow:"8px 8px 0 #000",padding:"32px 26px",maxWidth:420,width:"100%"}}>
+        <div style={{textAlign:"center",marginBottom:22}}>
+          <div style={{fontSize:44,marginBottom:8}}>🔐</div>
+          <div style={{fontFamily:"monospace",fontWeight:900,fontSize:15,color:"#1A1A2E",letterSpacing:2}}>ENTER GAME</div>
+        </div>
+        <label style={{display:"block",fontWeight:700,fontSize:13,marginBottom:6}}>帳號名稱</label>
+        <input value={name} onChange={e=>setName(e.target.value)}
+          onKeyDown={e=>e.key==="Enter"&&go()}
+          placeholder="輸入你的帳號名稱"
+          style={{width:"100%",padding:10,border:"3px solid #000",fontSize:15,fontWeight:700,boxSizing:"border-box",marginBottom:16}}/>
+        <label style={{display:"block",fontWeight:700,fontSize:13,marginBottom:6}}>密碼</label>
+        <input type="password" value={pw} onChange={e=>setPw(e.target.value)}
+          onKeyDown={e=>e.key==="Enter"&&go()}
+          placeholder="輸入密碼"
+          style={{width:"100%",padding:10,border:"3px solid #000",fontSize:15,boxSizing:"border-box",marginBottom:22}}/>
+        <button onClick={go}
+          style={{width:"100%",background:"#1A1A2E",color:"#F8C500",border:"3px solid #F8C500",padding:14,fontFamily:"monospace",fontWeight:900,fontSize:15,cursor:"pointer",boxShadow:"4px 4px 0 #F8C500",marginBottom:12}}>
+          ▶ 進入戰場
+        </button>
+        <button onClick={onBack}
+          style={{width:"100%",background:"transparent",border:"2px solid #ccc",color:"#888",padding:10,fontSize:13,cursor:"pointer"}}>
+          ← 返回
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════
+// 首次註冊（3步驟）
+// ══════════════════════════════════════════
+function RegisterScreen({users, squads, onDone, onBack, sfx, showToast}) {
+  const [step,setStep]=useState(1);
+  const [name,setName]=useState("");
+  const [pw1,setPw1]=useState("");
+  const [pw2,setPw2]=useState("");
+  const [team,setTeam]=useState("");
+  const [squad,setSquad]=useState("");
+  const [charId,setCharId]=useState("");
+  const [saving,setSaving]=useState(false);
+
+  const squadOpts = team ? (squads[team]||[]) : [];
+  const char = charId ? getChar(charId) : null;
+  const teamColor = team==="red"?"#E52222":team==="green"?"#2DAD3F":"#888";
+
+  const goStep2=()=>{
+    if (!name.trim()) { showToast("請輸入帳號名稱","err"); return; }
+    if (users.find(u=>u.name===name.trim())) { showToast("此帳號名稱已被使用，請換一個","err"); return; }
+    if (!pw1||pw1.length<4) { showToast("密碼至少4位","err"); return; }
+    if (pw1!==pw2) { showToast("兩次密碼不一致","err"); sfx.error(); return; }
+    sfx.select(); setStep(2);
+  };
+  const goStep3=()=>{
+    if (!team) { showToast("請選擇隊伍","err"); return; }
+    if (!squad) { showToast("請選擇小隊","err"); return; }
+    sfx.select(); setStep(3);
+  };
+  const finish=async()=>{
+    if (!charId) { showToast("請選擇角色","err"); return; }
+    if (saving) return;
+    setSaving(true);
+    await onDone({name:name.trim(), team, squad, charId, password:pw1});
+  };
+
+  const stepLabels=["①帳號設定","②選擇陣營","③選擇角色"];
+
+  return (
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:20,background:"#1A1A2E",
+      backgroundImage:"radial-gradient(circle at 20% 50%,rgba(229,34,34,.15) 0%,transparent 50%),radial-gradient(circle at 80% 20%,rgba(45,173,63,.15) 0%,transparent 50%)"}}>
+      <div style={{background:"#fff",border:"3px solid #F8C500",boxShadow:"8px 8px 0 #F8C500",padding:"28px 24px",maxWidth:460,width:"100%"}}>
+        {/* 步驟 */}
+        <div style={{display:"flex",gap:0,marginBottom:22,border:"2px solid #000",overflow:"hidden"}}>
+          {stepLabels.map((s,i)=>(
+            <div key={i} style={{flex:1,padding:"8px 4px",textAlign:"center",fontSize:12,fontWeight:700,
+              background:step===i+1?"#1A1A2E":step>i+1?"#2DAD3F":"#fff",
+              color:step===i+1?"#F8C500":step>i+1?"#fff":"#aaa",
+              borderRight:i<2?"2px solid #000":"none"}}>
+              {step>i+1?"✓ ":""}{s}
+            </div>
+          ))}
+        </div>
+        <div style={{textAlign:"center",marginBottom:16,fontSize:13,color:"#888",fontFamily:"monospace"}}>🎮 新玩家登錄</div>
+
+        {/* STEP 1 */}
+        {step===1&&(
+          <div>
+            <h2 style={{fontWeight:900,fontSize:20,marginBottom:16,color:"#1A1A2E"}}>帳號設定</h2>
+            <label style={{display:"block",fontWeight:700,fontSize:13,marginBottom:6}}>帳號名稱（顯示在排行榜上）</label>
+            <input value={name} onChange={e=>setName(e.target.value)}
+              onKeyDown={e=>e.key==="Enter"&&goStep2()}
+              placeholder="例如：小明 / 怡方01" maxLength={12}
+              style={{width:"100%",padding:10,border:"3px solid #000",fontSize:16,fontWeight:700,boxSizing:"border-box",marginBottom:16}}/>
+            <label style={{display:"block",fontWeight:700,fontSize:13,marginBottom:6}}>設定密碼（至少4位）</label>
+            <input type="password" value={pw1} onChange={e=>setPw1(e.target.value)}
+              placeholder="設定你的密碼"
+              style={{width:"100%",padding:10,border:"3px solid #000",fontSize:15,boxSizing:"border-box",marginBottom:12}}/>
+            <label style={{display:"block",fontWeight:700,fontSize:13,marginBottom:6}}>確認密碼</label>
+            <input type="password" value={pw2} onChange={e=>setPw2(e.target.value)}
+              onKeyDown={e=>e.key==="Enter"&&goStep2()}
+              placeholder="再輸入一次"
+              style={{width:"100%",padding:10,border:`3px solid ${pw2&&pw1!==pw2?"#E52222":"#000"}`,fontSize:15,boxSizing:"border-box",marginBottom:6}}/>
+            {pw2&&pw1!==pw2&&<div style={{color:"#E52222",fontSize:12,marginBottom:8}}>密碼不一致</div>}
+            <div style={{marginTop:16,display:"flex",gap:8}}>
+              <button onClick={onBack} style={{padding:"12px 20px",border:"2px solid #ccc",background:"#f5f5f5",cursor:"pointer",fontSize:13}}>← 返回</button>
+              <button onClick={goStep2} style={{flex:1,background:"#1A1A2E",color:"#F8C500",border:"3px solid #F8C500",padding:13,fontFamily:"monospace",fontWeight:900,fontSize:14,cursor:"pointer"}}>下一步 ▶</button>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 2 */}
+        {step===2&&(
+          <div>
+            <h2 style={{fontWeight:900,fontSize:20,marginBottom:16,color:"#1A1A2E"}}>選擇你的陣營</h2>
+            <label style={{display:"block",fontWeight:700,fontSize:13,marginBottom:10}}>選擇隊伍</label>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:20}}>
+              {[{v:"red",label:"🔴 瑪利歐\n紅隊",color:"#E52222",bg:"#FFF5F5"},{v:"green",label:"🟢 路易吉\n綠隊",color:"#2DAD3F",bg:"#F0FFF4"}].map(t=>(
+                <button key={t.v} onClick={()=>{setTeam(t.v);setSquad("");sfx.select();}}
+                  style={{padding:"18px 10px",border:`3px solid ${team===t.v?t.color:"#ccc"}`,
+                    background:team===t.v?t.bg:"#fff",cursor:"pointer",fontWeight:900,fontSize:15,
+                    whiteSpace:"pre-line",lineHeight:1.4,
+                    boxShadow:team===t.v?`3px 3px 0 ${t.color}`:"none",
+                    color:team===t.v?t.color:"#333"}}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+            {team&&(
+              <>
+                <label style={{display:"block",fontWeight:700,fontSize:13,marginBottom:8}}>選擇小隊</label>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8,marginBottom:20}}>
+                  {squadOpts.map(sq=>(
+                    <button key={sq} onClick={()=>{setSquad(sq);sfx.select();}}
+                      style={{padding:"12px 8px",border:`3px solid ${squad===sq?teamColor:"#ccc"}`,
+                        background:squad===sq?(team==="red"?"#FFF5F5":"#F0FFF4"):"#fff",
+                        cursor:"pointer",fontWeight:700,fontSize:13,
+                        boxShadow:squad===sq?`2px 2px 0 ${teamColor}`:"none",
+                        color:squad===sq?teamColor:"#333"}}>
+                      {sq}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>{setTeam("");setSquad("");setStep(1);}} style={{padding:"12px 20px",border:"2px solid #ccc",background:"#f5f5f5",cursor:"pointer",fontSize:13}}>← 上一步</button>
+              <button onClick={goStep3} style={{flex:1,background:"#1A1A2E",color:"#F8C500",border:"3px solid #F8C500",padding:13,fontFamily:"monospace",fontWeight:900,fontSize:14,cursor:"pointer"}}>下一步 ▶</button>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 3 */}
+        {step===3&&(
+          <div>
+            <h2 style={{fontWeight:900,fontSize:20,marginBottom:4,color:"#1A1A2E"}}>選擇你的戰鬥角色</h2>
+            <p style={{fontSize:13,color:"#666",marginBottom:16}}>馬力歐賽車15位角色，選一個代表你！</p>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:16,maxHeight:320,overflowY:"auto"}}>
+              {CHARACTERS.map(c=>(
+                <button key={c.id} onClick={()=>{setCharId(c.id);sfx.select();}}
+                  style={{border:`3px solid ${charId===c.id?c.color:"#ccc"}`,padding:"10px 6px",
+                    background:charId===c.id?c.bg:"#fff",cursor:"pointer",textAlign:"center",
+                    boxShadow:charId===c.id?`3px 3px 0 ${c.color}`:"none"}}>
+                  <div style={{display:"flex",justifyContent:"center",marginBottom:4}}><CharAvatar charId={c.id} size={42}/></div>
+                  <div style={{fontWeight:900,fontSize:10,color:charId===c.id?c.color:"#333"}}>{c.nameZh||c.name}</div>
+                </button>
+              ))}
+            </div>
+            {char&&(
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16,padding:"10px 14px",background:char.bg,border:`2px solid ${char.color}`}}>
+                <CharAvatar charId={char.id} size={48}/>
+                <div>
+                  <div style={{fontWeight:900,fontSize:14,color:char.color}}>{char.nameZh||char.name}</div>
+                  <div style={{fontSize:12,color:"#555"}}>{name}・{team==="red"?"🔴 紅隊":"🟢 綠隊"}・{squad}</div>
+                </div>
+              </div>
+            )}
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>setStep(2)} style={{padding:"12px 20px",border:"2px solid #ccc",background:"#f5f5f5",cursor:"pointer",fontSize:13}}>← 上一步</button>
+              <button onClick={finish} disabled={saving}
+                style={{flex:1,background:saving?"#aaa":"#2DAD3F",color:"#fff",border:"3px solid #000",
+                  padding:13,fontFamily:"monospace",fontWeight:900,fontSize:14,cursor:"pointer",boxShadow:"3px 3px 0 #000"}}>
+                {saving?"⏳ 處理中...":"🎮 開始冒險！"}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 
 // ══════════════════════════════════════════
 // 首次登入設定

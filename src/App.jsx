@@ -150,10 +150,15 @@ function useSfx() {
     login:   ()=>{[440,550,660].forEach((f,i)=>setTimeout(()=>t(f,.12),i*110));},
     select:  ()=>{t(660,.07);setTimeout(()=>t(880,.1),80);},
     setup:   ()=>{[523,659,784,1047,1319].forEach((f,i)=>setTimeout(()=>t(f,.15,"triangle",.2),i*90));},
-    taskSfx: (tid)=>{
+    jump:    ()=>{t(400,.05,"square",.3);setTimeout(()=>t(700,.12,"square",.25),40);},
+    oneUp:   ()=>{[784,1047,784,1047,784,1319].forEach((f,i)=>setTimeout(()=>t(f,.1,"square",.2),i*80));},
+    stomp:   ()=>{t(300,.04,"square",.35);setTimeout(()=>t(180,.08,"square",.25),35);},
+    flagpole:()=>{[523,494,440,392,349,330,294,262].forEach((f,i)=>setTimeout(()=>t(f,.09,"triangle",.22),i*60));setTimeout(()=>{[523,659,784].forEach((f,j)=>setTimeout(()=>t(f,.15,"triangle",.28),j*90));},600);},
+    worldClear:()=>{const seq=[523,659,784,659,784,880,784,880,1047];seq.forEach((f,i)=>setTimeout(()=>t(f,.12,"sawtooth",.2),i*110));},
+    taskSfx: (tid,qty=1)=>{
       const m={friend:"coin",shopping:"coin",survey:"powerUp",bond:"powerUp",expo:"star",close:"levelUp"};
       const fn={coin:()=>{t(988,.1);setTimeout(()=>t(1319,.18),100);},star:()=>{[523,659,784,1047].forEach((f,i)=>setTimeout(()=>t(f,.13),i*80));},levelUp:()=>{[523,659,784,1047,1319].forEach((f,i)=>setTimeout(()=>t(f,.18,"sawtooth",.18),i*100));},powerUp:()=>{[392,523,659,784].forEach((f,i)=>setTimeout(()=>t(f,.15,"triangle",.28),i*90));}};
-      fn[m[tid]||"coin"]?.();
+      if (qty>=5) { setTimeout(()=>fn["levelUp"]?.(),0); } else { fn[m[tid]||"coin"]?.(); }
     },
   };
 }
@@ -257,7 +262,7 @@ export default function App() {
   };
 
   // 上傳任務
-  const handleSubmit = async (taskId) => {
+  const handleSubmit = async (taskId, qty=1) => {
     const now = new Date();
     const day = now.getDay();
     const hour = now.getHours();
@@ -269,11 +274,12 @@ export default function App() {
     const task = TASKS.find(t=>t.id===taskId);
     const dynBonus = weekBonuses[week] !== undefined ? weekBonuses[week] : (WEEKS.find(w=>w.week===week)?.bonus ?? null);
     const xp = (dynBonus?.taskId===taskId) ? dynBonus.multiplier : task.xp;
-    const entry = { id:Date.now()+"", userId:me.id, taskId, week, ts:now.toISOString(), xp };
+    const totalXP = xp * qty;
+    const entry = { id:Date.now()+"", userId:me.id, taskId, week, ts:now.toISOString(), xp:totalXP, qty };
     const next = [...subs, entry];
     await saveSubs(next);
-    sfx.taskSfx(taskId);
-    showToast(`✅ 獲得 ${xp} XP！（第 ${week} 週）`,"ok");
+    sfx.taskSfx(taskId, qty);
+    showToast(`✅ 獲得 ${totalXP} XP！${qty>1?"（"+qty+"次）":""}（第 ${week} 週）`,"ok");
     return true;
   };
 
@@ -979,20 +985,24 @@ function RankTab({users, subs, curWeek}) {
 // ══════════════════════════════════════════
 // SUBMIT TAB
 // ══════════════════════════════════════════
-function SubmitTab({me, onSubmit, curWeek, getBonus, showToast}) {
+function SubmitTab({me, onSubmit, curWeek, getBonus, showToast, sfx}) {
   const [taskId,setTaskId] = useState("");
+  const [qty,setQty]       = useState(1);
   const [busy,setBusy]     = useState(false);
 
   const curBonus = getBonus(curWeek);
   const task     = TASKS.find(t=>t.id===taskId);
-  const effXP    = task ? (curBonus?.taskId===taskId ? curBonus.multiplier : task.xp) : 0;
+  const baseXP   = task ? (curBonus?.taskId===taskId ? curBonus.multiplier : task.xp) : 0;
+  const effXP    = baseXP * qty;
   const isBonus  = task && curBonus?.taskId===taskId;
+
+  const changeQty = (d) => { setQty(q=>Math.max(1,Math.min(20,q+d))); sfx.select(); };
 
   const submit = async () => {
     if (!taskId) { showToast("請選擇任務類型","err"); return; }
     setBusy(true);
-    const ok = await onSubmit(taskId);
-    if (ok) setTaskId("");
+    const ok = await onSubmit(taskId, qty);
+    if (ok) { setTaskId(""); setQty(1); }
     setBusy(false);
   };
 
@@ -1034,17 +1044,30 @@ function SubmitTab({me, onSubmit, curWeek, getBonus, showToast}) {
           })}
         </div>
 
-        {/* XP 預覽 */}
+        {/* 數量選擇 + XP 預覽 */}
         {task && (
-          <div style={{background:isBonus?"#FFF0F0":"#F0FFF4",border:`2px solid ${isBonus?"#E52222":"#2DAD3F"}`,
-            padding:"14px 18px",marginBottom:18,display:"flex",alignItems:"center",gap:14}}>
-            <div style={{fontFamily:"monospace",fontSize:36,fontWeight:900,color:isBonus?"#E52222":"#2DAD3F"}}>
-              +{effXP}
+          <div style={{marginBottom:14}}>
+            <label style={{display:"block",fontWeight:700,fontSize:13,marginBottom:8}}>完成次數</label>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+              <button onClick={()=>changeQty(-1)}
+                style={{width:44,height:44,fontSize:22,fontWeight:900,border:"3px solid #000",background:"#f5f5f5",cursor:"pointer",flexShrink:0}}>−</button>
+              <div style={{flex:1,textAlign:"center",fontFamily:"monospace",fontSize:32,fontWeight:900,border:"3px solid #000",padding:"6px 0",background:"#fff"}}>
+                {qty}
+              </div>
+              <button onClick={()=>changeQty(1)}
+                style={{width:44,height:44,fontSize:22,fontWeight:900,border:"3px solid #000",background:"#f5f5f5",cursor:"pointer",flexShrink:0}}>＋</button>
             </div>
-            <div>
-              <div style={{fontSize:14,fontWeight:900}}>{task.label}</div>
-              {isBonus && <div style={{color:"#E52222",fontSize:12,fontWeight:700}}>🔥 本週加權任務！</div>}
-              <div style={{fontSize:12,color:"#888"}}>第 {curWeek} 週</div>
+            <div style={{background:isBonus?"#FFF0F0":"#F0FFF4",border:`2px solid ${isBonus?"#E52222":"#2DAD3F"}`,
+              padding:"12px 18px",display:"flex",alignItems:"center",gap:14}}>
+              <div style={{fontFamily:"monospace",fontSize:36,fontWeight:900,color:isBonus?"#E52222":"#2DAD3F"}}>
+                +{effXP}
+              </div>
+              <div>
+                <div style={{fontSize:14,fontWeight:900}}>{task.label} × {qty}</div>
+                {qty>1&&<div style={{fontSize:12,color:"#555"}}>{baseXP} XP × {qty} 次</div>}
+                {isBonus && <div style={{color:"#E52222",fontSize:12,fontWeight:700}}>🔥 本週加權任務！</div>}
+                <div style={{fontSize:12,color:"#888"}}>第 {curWeek} 週</div>
+              </div>
             </div>
           </div>
         )}

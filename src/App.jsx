@@ -665,28 +665,37 @@ function BoardTab({users, subs, curWeek}) {
       </table>
 
       {/* 個人牌 */}
-      {["red","green"].map(team=>(
-        <div key={team} style={{marginBottom:16}}>
-          <div style={{fontWeight:900,fontSize:15,marginBottom:8,color:team==="red"?"#E52222":"#2DAD3F"}}>
-            {team==="red"?"🔴 瑪利歐紅隊成員":"🟢 路易吉綠隊成員"}
-          </div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:10}}>
-            {users.filter(u=>u.team===team).map(u=>{
-              const xp = memberXP(u.id, vw);
-              const cnt = subs.filter(s=>s.userId===u.id&&s.week===vw).length;
-              const color = team==="red"?"#E52222":"#2DAD3F";
-              return (
-                <div key={u.id} style={{border:`3px solid ${color}`,padding:"14px 10px",background:"#fff",boxShadow:`3px 3px 0 ${color}`,textAlign:"center"}}>
-                  <div style={{fontWeight:900,fontSize:18,color:color,marginBottom:2}}>{u.realName||u.name}</div>
-                  <div style={{fontSize:12,color:"#888",marginBottom:8}}>{u.name}</div>
-                  <div style={{fontFamily:"monospace",fontSize:26,fontWeight:900,color:color}}>{xp}</div>
-                  <div style={{fontSize:11,color:"#aaa",marginTop:2}}>{cnt}筆記錄</div>
+      {["red","green"].map(team=>{
+        const squads = [...new Set(users.filter(u=>u.team===team).map(u=>u.squad||"（未分配）"))].sort();
+        const color = team==="red"?"#E52222":"#2DAD3F";
+        return (
+          <div key={team} style={{marginBottom:16}}>
+            <div style={{fontWeight:900,fontSize:15,marginBottom:10,color}}>
+              {team==="red"?"🔴 瑪利歐紅隊成員":"🟢 路易吉綠隊成員"}
+            </div>
+            {squads.map(sq=>(
+              <div key={sq} style={{marginBottom:12}}>
+                <div style={{fontSize:12,fontWeight:700,color:"#555",background:"#f0f0f0",padding:"4px 10px",borderLeft:`3px solid ${color}`,marginBottom:8}}>🏷️ {sq}</div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:8}}>
+                  {users.filter(u=>u.team===team&&(u.squad||"（未分配）")===sq).map(u=>{
+                    const xp = memberXP(u.id, vw);
+                    const cnt = subs.filter(s=>s.userId===u.id&&s.week===vw).length;
+                    return (
+                      <div key={u.id} style={{border:`3px solid ${color}`,padding:"12px 8px",background:"#fff",boxShadow:`3px 3px 0 ${color}`,textAlign:"center"}}>
+                        <div style={{display:"flex",justifyContent:"center",marginBottom:4}}><CharAvatar charId={u.charId||"mario"} size={36}/></div>
+                        <div style={{fontWeight:900,fontSize:14,color,marginBottom:2}}>{u.realName||u.name}</div>
+                        <div style={{fontSize:10,color:"#aaa",marginBottom:6}}>{u.name}</div>
+                        <div style={{fontFamily:"monospace",fontSize:24,fontWeight:900,color}}>{xp}</div>
+                        <div style={{fontSize:11,color:"#aaa",marginTop:2}}>{cnt}筆</div>
+                      </div>
+                    );
+                  })}
                 </div>
-              );
-            })}
+              </div>
+            ))}
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -1050,17 +1059,17 @@ function ManualTab() {
 function AdminTab({users, saveUsers, subs, saveSubs, weekBonuses, getBonus, saveWeekBonus, showToast, sfx}) {
   const [sub, setSub] = useState("members");
   const [edit, setEdit] = useState(null);
-  const [eN,setEN]=useState(""); const [eRN,setERN]=useState(""); const [eT,setET]=useState(""); const [ePw,setEPw]=useState("");
-  const [nN,setNN]=useState(""); const [nT,setNT]=useState("red"); const [nPw,setNPw]=useState("1234");
+  const [eN,setEN]=useState(""); const [eRN,setERN]=useState(""); const [eT,setET]=useState(""); const [ePw,setEPw]=useState(""); const [eSq,setESq]=useState("");
+  const [nN,setNN]=useState(""); const [nT,setNT]=useState("red"); const [nSq,setNSq]=useState(""); const [nPw,setNPw]=useState("1234");
   // RNG Buff states
   const [rngResult, setRngResult] = useState(null);
   const [rngAnim, setRngAnim] = useState(false);
   const [rngSaving, setRngSaving] = useState(false);
 
-  const startEdit = u => { setEdit(u); setEN(u.name); setERN(u.realName||""); setET(u.team); setEPw(""); };
+  const startEdit = u => { setEdit(u); setEN(u.name); setERN(u.realName||""); setET(u.team); setESq(u.squad||""); setEPw(""); };
   const saveEdit = async () => {
     if (!eN.trim()) { showToast("名稱不能空白","err"); return; }
-    const next = users.map(u=>u.id===edit.id?{...u,name:eN.trim(),realName:eRN.trim(),team:eT,...(ePw?{password:ePw}:{})}:u);
+    const next = users.map(u=>u.id===edit.id?{...u,name:eN.trim(),realName:eRN.trim(),team:eT,squad:eSq.trim(),...(ePw?{password:ePw}:{})}:u);
     await saveUsers(next); sfx.coin(); showToast("已更新"); setEdit(null);
   };
   const resetSetup = async uid => {
@@ -1071,7 +1080,7 @@ function AdminTab({users, saveUsers, subs, saveSubs, weekBonuses, getBonus, save
   const addUser = async () => {
     if (!nN.trim()) { showToast("請輸入名稱","err"); return; }
     const id = "u"+Date.now();
-    await saveUsers([...users,{id,name:nN.trim(),team:nT,password:"",charId:"",setupDone:false,realName:""}]);
+    await saveUsers([...users,{id,name:nN.trim(),team:nT,squad:nSq.trim(),password:"",charId:"",setupDone:false,realName:""}]);
     sfx.levelUp(); showToast("新增成功！"); setNN(""); setNPw("1234");
   };
   const delUser = async uid => {
@@ -1157,6 +1166,7 @@ function AdminTab({users, saveUsers, subs, saveSubs, weekBonuses, getBonus, save
               <div style={{fontWeight:900,marginBottom:12}}>✏️ 編輯：{edit.name}</div>
               <input value={eN} onChange={e=>setEN(e.target.value)} placeholder="小隊名稱" style={{display:"block",width:"100%",padding:8,border:"2px solid #000",marginBottom:8,fontSize:14,boxSizing:"border-box"}} />
               <input value={eRN} onChange={e=>setERN(e.target.value)} placeholder="真實姓名" style={{display:"block",width:"100%",padding:8,border:"2px solid #000",marginBottom:8,fontSize:14,boxSizing:"border-box"}} />
+              <input value={eSq} onChange={e=>setESq(e.target.value)} placeholder="所屬小隊（例：怡方小C）" style={{display:"block",width:"100%",padding:8,border:"2px solid #000",marginBottom:8,fontSize:14,boxSizing:"border-box"}} />
               <select value={eT} onChange={e=>setET(e.target.value)} style={{display:"block",width:"100%",padding:8,border:"2px solid #000",marginBottom:8,fontSize:14}}>
                 <option value="red">🔴 瑪利歐紅隊</option>
                 <option value="green">🟢 路易吉綠隊</option>
@@ -1168,33 +1178,41 @@ function AdminTab({users, saveUsers, subs, saveSubs, weekBonuses, getBonus, save
               </div>
             </div>
           )}
-          {["red","green"].map(team=>(
-            <div key={team} style={{marginBottom:16}}>
-              <div style={{fontWeight:900,fontSize:14,marginBottom:8,color:team==="red"?"#E52222":"#2DAD3F"}}>{team==="red"?"🔴 瑪利歐紅隊":"🟢 路易吉綠隊"}</div>
-              {users.filter(u=>u.team===team).map(u=>{
-                const c = getChar(u.charId||"mario");
-                return (
-                  <div key={u.id} style={{display:"flex",alignItems:"center",gap:8,border:"2px solid #ddd",padding:"9px 12px",marginBottom:6,background:"#fff",flexWrap:"wrap"}}>
-                    <span>{u.setupDone?<CharAvatar charId={u.charId||"mario"} size={36}/>:<span style={{fontSize:22}}>❓</span>}</span>
-                    <div style={{flex:1}}>
-                      <div style={{fontWeight:700,fontSize:14}}>{u.name}{u.realName?<span style={{color:"#888",fontWeight:400}}> ({u.realName})</span>:""}</div>
-                      <div style={{fontSize:11,color:"#aaa"}}>{u.setupDone?"✅ 已設定":"⏳ 尚未設定"}</div>
-                    </div>
-                    <button onClick={()=>startEdit(u)} style={{padding:"4px 10px",border:"2px solid #1565C0",color:"#1565C0",background:"#fff",cursor:"pointer",fontSize:12,fontWeight:700}}>編輯</button>
-                    <button onClick={()=>resetSetup(u.id)} style={{padding:"4px 10px",border:"2px solid #E07800",color:"#E07800",background:"#fff",cursor:"pointer",fontSize:12}}>重置</button>
-                    <button onClick={()=>delUser(u.id)} style={{padding:"4px 8px",border:"2px solid #E52222",color:"#E52222",background:"#fff",cursor:"pointer",fontSize:12}}>✕</button>
+          {["red","green"].map(team=>{
+            const squads = [...new Set(users.filter(u=>u.team===team).map(u=>u.squad||"（未分配小隊）"))].sort();
+            return (
+              <div key={team} style={{marginBottom:16}}>
+                <div style={{fontWeight:900,fontSize:14,marginBottom:8,color:team==="red"?"#E52222":"#2DAD3F"}}>{team==="red"?"🔴 瑪利歐紅隊":"🟢 路易吉綠隊"} ({users.filter(u=>u.team===team).length}人)</div>
+                {squads.map(sq=>(
+                  <div key={sq} style={{marginBottom:12}}>
+                    <div style={{fontSize:12,fontWeight:700,color:"#555",background:"#f5f5f5",padding:"4px 10px",border:"1px solid #ddd",marginBottom:6}}>🏷️ {sq}</div>
+                    {users.filter(u=>u.team===team&&(u.squad||"（未分配小隊）")===sq).map(u=>{
+                      const c = getChar(u.charId||"mario");
+                      return (
+                        <div key={u.id} style={{display:"flex",alignItems:"center",gap:8,border:"2px solid #ddd",padding:"9px 12px",marginBottom:4,background:"#fff",flexWrap:"wrap"}}>
+                          <span>{u.setupDone?<CharAvatar charId={u.charId||"mario"} size={34}/>:<span style={{fontSize:20}}>❓</span>}</span>
+                          <div style={{flex:1}}>
+                            <div style={{fontWeight:700,fontSize:13}}>{u.name}{u.realName?<span style={{color:"#888",fontWeight:400}}> ({u.realName})</span>:""}</div>
+                            <div style={{fontSize:10,color:"#aaa"}}>{u.setupDone?"✅ 已設定":"⏳ 尚未設定"}</div>
+                          </div>
+                          <button onClick={()=>startEdit(u)} style={{padding:"4px 10px",border:"2px solid #1565C0",color:"#1565C0",background:"#fff",cursor:"pointer",fontSize:12,fontWeight:700}}>編輯</button>
+                          <button onClick={()=>resetSetup(u.id)} style={{padding:"4px 10px",border:"2px solid #E07800",color:"#E07800",background:"#fff",cursor:"pointer",fontSize:12}}>重置</button>
+                          <button onClick={()=>delUser(u.id)} style={{padding:"4px 8px",border:"2px solid #E52222",color:"#E52222",background:"#fff",cursor:"pointer",fontSize:12}}>✕</button>
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
-            </div>
-          ))}
-        </div>
+                ))}
+              </div>
+            );
+          })}
       )}
 
       {sub==="add" && (
         <div style={{background:"#fff",border:"3px solid #000",padding:20,boxShadow:"4px 4px 0 #000"}}>
           <div style={{fontWeight:900,fontSize:15,marginBottom:14}}>➕ 新增成員</div>
-          <input value={nN} onChange={e=>setNN(e.target.value)} placeholder="小隊名稱（例：小明小C）" style={{display:"block",width:"100%",padding:10,border:"3px solid #000",marginBottom:10,fontSize:15,boxSizing:"border-box"}} />
+          <input value={nN} onChange={e=>setNN(e.target.value)} placeholder="個人登入名稱（例：怡方、小C）" style={{display:"block",width:"100%",padding:10,border:"3px solid #000",marginBottom:10,fontSize:15,boxSizing:"border-box"}} />
+          <input value={nSq} onChange={e=>setNSq(e.target.value)} placeholder="所屬小隊（例：怡方小C）" style={{display:"block",width:"100%",padding:10,border:"3px solid #000",marginBottom:10,fontSize:15,boxSizing:"border-box"}} />
           <select value={nT} onChange={e=>setNT(e.target.value)} style={{display:"block",width:"100%",padding:10,border:"3px solid #000",marginBottom:14,fontSize:15}}>
             <option value="red">🔴 瑪利歐紅隊</option>
             <option value="green">🟢 路易吉綠隊</option>

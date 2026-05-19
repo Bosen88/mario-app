@@ -1206,6 +1206,7 @@ function AdminTab({users, saveUsers, subs, saveSubs, weekBonuses, getBonus, save
               </div>
             );
           })}
+        </div>
       )}
 
       {sub==="add" && (

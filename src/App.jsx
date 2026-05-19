@@ -236,6 +236,12 @@ export default function App() {
   // 上傳任務
   const handleSubmit = async (taskId, imgData, note) => {
     const now = new Date();
+    const day = now.getDay();
+    const hour = now.getHours();
+    if (day === 0 && hour === 23) {
+      showToast("🔧 系統維護中（週日23:00–24:00），暫停上傳","err");
+      return false;
+    }
     const week = getSubmitWeek(now.toISOString());
     const task = TASKS.find(t=>t.id===taskId);
     const dynBonus = weekBonuses[week] !== undefined ? weekBonuses[week] : (WEEKS.find(w=>w.week===week)?.bonus ?? null);
@@ -533,6 +539,7 @@ function MainApp({me,setMe,users,saveUsers,subs,saveSubs,tab,setTab,curWeek,wBon
     {id:"history",label:"📋 記錄"},
     {id:"rules",  label:"📜 規則"},
     {id:"manual", label:"📖 說明"},
+    {id:"monitor", label:"📊 分析"},
     ...(me.isAdmin?[{id:"admin",label:"👑 管理"}]:[]),
   ];
   const displayName = me.isAdmin ? "大C（管理者）" : `${me.name}・${me.realName||"?"}`;
@@ -579,6 +586,7 @@ function MainApp({me,setMe,users,saveUsers,subs,saveSubs,tab,setTab,curWeek,wBon
         {tab==="history" && <HistoryTab me={me} users={users} subs={subs} saveSubs={saveSubs} showToast={showToast} sfx={sfx} />}
         {tab==="rules"   && <RulesTab   curWeek={curWeek} />}
         {tab==="manual"  && <ManualTab />}
+        {tab==="monitor" && <MonitorBoard users={users} subs={subs} curWeek={curWeek} />}
         {tab==="admin"   && me.isAdmin && <AdminTab users={users} saveUsers={saveUsers} subs={subs} saveSubs={saveSubs} weekBonuses={weekBonuses} getBonus={getBonus} saveWeekBonus={saveWeekBonus} showToast={showToast} sfx={sfx} />}
       </div>
     </div>
@@ -1014,11 +1022,11 @@ function ManualTab() {
     {icon:"🎮",title:"遊戲概述",body:`本遊戲為嘉南執行團隊2026年5–6月招募競賽。每位參賽者代表一個可升級的角色，透過完成各種業務行動累積XP積分，最終以「人均戰力」決定勝負。不是拼誰做最多，而是比誰升級最快！`},
     {icon:"🔐",title:"首次登入（新手必讀）",body:`1. 在登入頁選擇你的小隊名稱\n2. 系統偵測到尚未設定 → 自動進入首次設定流程\n3. 步驟① 輸入你的真實姓名（會顯示在排行榜）\n4. 步驟② 從15位馬力歐賽車角色中選一個代表你\n5. 步驟③ 設定你自己的專屬密碼（至少4位）\n6. 完成後正式進入遊戲！`},
     {icon:"📤",title:"如何上傳任務成果",body:`1. 點選「📤 上傳」頁籤\n2. 選擇任務類型\n3. 點擊截圖框上傳截圖（必填！）\n4. 填寫備註（選填）\n5. 點「提交任務成果」\n\n✅ 每筆任務需各自上傳一張截圖\n📸 例如商展2次 → 上傳2筆，各有1張截圖`},
-    {icon:"⏰",title:"截止時間規則",body:`每週日 23:00 為結算截止\n\n✅ 週一00:00 – 週日23:00 上傳 → 計入本週\n❌ 週日23:01 後上傳 → 自動計入下一週\n\n系統自動判斷，無法人工調整。`},
+    {icon:"⏰",title:"截止時間規則",body:`每週結算截止：週日 22:59\n每週日 23:00–24:00 為系統維護時間\n\n✅ 週一 00:00 ~ 週日 22:59 上傳 → 計入本週\n🔧 週日 23:00–23:59 → 系統維護中，暫停上傳\n\n維護時間內系統自動鎖定，無法提交任務。`},
     {icon:"🏆",title:"個人排行榜（前10名）",body:`點選「🥇 排行」頁籤即可查看：\n・「本週排行」→ 當週XP前10名\n・「全期累積」→ 整個活動期間累積XP前10名\n\n前三名以賽車頒獎台方式展示！`},
     {icon:"🔥",title:"加權任務（RNG Buff）",body:`每週一活動開始，隨機抽出任務賦予特別加權！\n\n第一週（5/18–5/24）：線上居購每份+7分（原本+2分）\n\n加權項目會顯示在任務按鈕上（🔥 標示），以及頁面頂部紅色公告欄。`},
     {icon:"🎵",title:"遊戲音效對照",body:`🟢🍄 新增群友 → 金幣音\n🔴🍄 線上居購 → 金幣音\n🌸 市調任務 → 升級音\n🌀 強連結 → 升級音\n🪶 商展評估 → 星星音\n⭐ 成功締結 → 最終升級旋律🎺`},
-    {icon:"👑",title:"管理者功能（大C專用）",body:`帳號：大C（管理者）\n密碼：admin888\n\n可執行：\n・編輯成員姓名、換隊、重設密碼\n・新增/刪除成員\n・查看並刪除所有上傳記錄\n・清空所有記錄（謹慎！）`},
+    {icon:"👑",title:"管理者功能（大C專用）",body:`管理員登入後可執行：\n・編輯成員姓名、換隊、重設密碼\n・新增/刪除成員\n・查看並刪除所有上傳記錄\n・清空所有記錄（謹慎！）\n・🎲 RNG Buff：隨機設定週次加權\n・💾 資料備份與還原`},
   ];
   return (
     <div>
@@ -1075,6 +1083,29 @@ function AdminTab({users, saveUsers, subs, saveSubs, weekBonuses, getBonus, save
     await saveSubs([]); sfx.error(); showToast("已清空","err");
   };
 
+  // Backup / Restore
+  const backupData = () => {
+    const data = { exportTime:new Date().toISOString(), users, subs, weekBonuses };
+    const blob = new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `mario-backup-${new Date().toISOString().slice(0,10)}.json`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url); showToast("✅ 備份已下載");
+  };
+  const restoreData = async (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    if (!window.confirm("⚠️ 確定還原？這將覆蓋所有現有資料！")) { e.target.value=""; return; }
+    try {
+      const data = JSON.parse(await file.text());
+      if (data.users) await saveUsers(data.users);
+      if (data.subs) await saveSubs(data.subs);
+      if (data.weekBonuses) for (const [w,b] of Object.entries(data.weekBonuses)) await saveWeekBonus(Number(w),b);
+      sfx.levelUp(); showToast("✅ 資料還原成功！");
+    } catch(err) { showToast("❌ 檔案格式錯誤","err"); }
+    e.target.value="";
+  };
+
   // RNG helpers
   const MULTIPLIERS = [3, 4, 5, 6, 7, 8, 10];
   const doRng = () => {
@@ -1109,7 +1140,7 @@ function AdminTab({users, saveUsers, subs, saveSubs, weekBonuses, getBonus, save
   })();
   const nextWeek = Math.min(curWeek + 1, WEEKS.length);
 
-  const adTabs = [{id:"members",label:"成員管理"},{id:"add",label:"新增成員"},{id:"subs",label:"所有記錄"},{id:"rng",label:"🎲 RNG Buff"}];
+  const adTabs = [{id:"members",label:"成員管理"},{id:"add",label:"新增成員"},{id:"subs",label:"所有記錄"},{id:"rng",label:"🎲 RNG Buff"},{id:"backup",label:"💾 備份"}];
   return (
     <div>
       <div style={{background:"#E52222",color:"#fff",border:"3px solid #000",padding:"10px 16px",marginBottom:14,fontWeight:900}}>👑 管理者後台 — 謹慎操作</div>
@@ -1240,6 +1271,19 @@ function AdminTab({users, saveUsers, subs, saveSubs, weekBonuses, getBonus, save
           </div>
         </div>
       )}
+
+      {sub==="backup" && (
+        <div>
+          <div style={{background:"#fff",border:"3px solid #000",padding:20,marginBottom:16,boxShadow:"4px 4px 0 #000"}}>
+            <div style={{fontWeight:900,fontSize:15,marginBottom:8}}>💾 資料備份</div>
+            <div style={{fontSize:12,color:"#888",marginBottom:16}}>將目前所有資料（成員、記錄、加權設定）匯出為 JSON 檔案。</div>
+            <button onClick={backupData} style={{width:"100%",background:"#1A1A2E",color:"#F8C500",border:"3px solid #000",padding:12,cursor:"pointer",fontWeight:900,fontSize:14,boxShadow:"3px 3px 0 #000",marginBottom:20}}>⬇️ 下載備份 JSON</button>
+            <div style={{fontWeight:900,fontSize:15,marginBottom:8}}>📥 還原資料</div>
+            <div style={{fontSize:12,color:"#E52222",marginBottom:12}}>⚠️ 上傳備份檔案將覆蓋所有現有資料，請謹慎操作！</div>
+            <input type="file" accept=".json" onChange={restoreData} style={{display:"block",width:"100%",padding:10,border:"3px solid #E52222",boxSizing:"border-box",fontSize:13}} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1262,6 +1306,147 @@ function Toast({msg, type}) {
     <div style={{position:"fixed",top:76,left:"50%",transform:"translateX(-50%)",background:bg,color:"#fff",padding:"12px 24px",border:"3px solid #000",boxShadow:"4px 4px 0 #000",zIndex:99999,fontWeight:900,fontSize:14,whiteSpace:"nowrap",animation:"tin .3s ease",pointerEvents:"none"}}>
       {msg}
       <style>{`@keyframes tin{from{opacity:0;transform:translateX(-50%) translateY(-14px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}`}</style>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════
+// MONITOR BOARD
+// ══════════════════════════════════════════
+function MonitorBoard({users, subs, curWeek}) {
+  const weeks = [1,2,3,4,5,6];
+  // Weekly XP per team
+  const teamWeekXP = {red:{}, green:{}};
+  weeks.forEach(w => { teamWeekXP.red[w]=0; teamWeekXP.green[w]=0; });
+  subs.forEach(s => {
+    const u = users.find(x=>x.id===s.userId);
+    if (u && teamWeekXP[u.team]) teamWeekXP[u.team][s.week] = (teamWeekXP[u.team][s.week]||0) + s.xp;
+  });
+  // Per-user total XP
+  const userXP = {};
+  users.forEach(u=>{ userXP[u.id]=0; });
+  subs.forEach(s=>{ userXP[s.userId]=(userXP[s.userId]||0)+s.xp; });
+  // Team stats
+  const redMembers = users.filter(u=>u.team==="red"&&u.setupDone);
+  const greenMembers = users.filter(u=>u.team==="green"&&u.setupDone);
+  const redTotal = Object.values(teamWeekXP.red).reduce((a,b)=>a+b,0);
+  const greenTotal = Object.values(teamWeekXP.green).reduce((a,b)=>a+b,0);
+  const redAvg = redMembers.length ? (redTotal/redMembers.length).toFixed(1) : "0.0";
+  const greenAvg = greenMembers.length ? (greenTotal/greenMembers.length).toFixed(1) : "0.0";
+  // Task breakdown
+  const taskCounts = {};
+  subs.forEach(s=>{ taskCounts[s.taskId]=(taskCounts[s.taskId]||0)+1; });
+  const maxTaskCnt = Math.max(...TASKS.map(t=>taskCounts[t.id]||0), 1);
+  // Chart
+  const chartW = 280, chartH = 110;
+  const barW = 16;
+  const gap = Math.floor((chartW - weeks.length*(barW*2+4)) / (weeks.length+1));
+  const maxXP = Math.max(...weeks.map(w=>Math.max(teamWeekXP.red[w]||0, teamWeekXP.green[w]||0)), 1);
+
+  return (
+    <div style={{paddingBottom:20}}>
+      <div style={{background:"#1A1A2E",color:"#F8C500",border:"3px solid #F8C500",padding:"12px 16px",marginBottom:16,boxShadow:"5px 5px 0 #F8C500"}}>
+        <div style={{fontFamily:"monospace",fontSize:11,marginBottom:2}}>📊 MONITOR BOARD</div>
+        <div style={{fontWeight:900,fontSize:15}}>戰力分析儀表板</div>
+      </div>
+
+      {/* Battle Power Cards */}
+      <div style={{display:"flex",gap:12,marginBottom:16}}>
+        <div style={{flex:1,background:"#FFECEC",border:"3px solid #E52222",padding:14,textAlign:"center",boxShadow:"3px 3px 0 #E52222"}}>
+          <div style={{fontSize:11,color:"#E52222",fontWeight:700,marginBottom:4}}>🔴 紅隊 人均戰力</div>
+          <div style={{fontSize:30,fontWeight:900,color:"#E52222",lineHeight:1}}>{redAvg}</div>
+          <div style={{fontSize:10,color:"#aaa",marginTop:4}}>XP / 人（{redMembers.length}人）</div>
+        </div>
+        <div style={{flex:1,background:"#EFFFEC",border:"3px solid #2DAD3F",padding:14,textAlign:"center",boxShadow:"3px 3px 0 #2DAD3F"}}>
+          <div style={{fontSize:11,color:"#2DAD3F",fontWeight:700,marginBottom:4}}>🟢 綠隊 人均戰力</div>
+          <div style={{fontSize:30,fontWeight:900,color:"#2DAD3F",lineHeight:1}}>{greenAvg}</div>
+          <div style={{fontSize:10,color:"#aaa",marginTop:4}}>XP / 人（{greenMembers.length}人）</div>
+        </div>
+      </div>
+
+      {/* Weekly XP Chart */}
+      <div style={{background:"#fff",border:"3px solid #000",padding:14,marginBottom:16,boxShadow:"4px 4px 0 #000"}}>
+        <div style={{fontWeight:900,fontSize:13,marginBottom:10}}>📈 週次 XP 趨勢（隊伍）</div>
+        <svg width="100%" viewBox={`0 0 ${chartW+50} ${chartH+35}`}>
+          {/* Y axis */}
+          <line x1={38} y1={0} x2={38} y2={chartH} stroke="#ccc" strokeWidth={1}/>
+          {/* X axis */}
+          <line x1={38} y1={chartH} x2={chartW+42} y2={chartH} stroke="#000" strokeWidth={2}/>
+          {weeks.map((w,wi) => {
+            const rH = Math.max(((teamWeekXP.red[w]||0)/maxXP)*chartH, 0);
+            const gH = Math.max(((teamWeekXP.green[w]||0)/maxXP)*chartH, 0);
+            const x = 42 + wi*(barW*2+gap+2);
+            return (
+              <g key={w}>
+                <rect x={x} y={chartH-rH} width={barW} height={rH} fill="#E52222" rx={2}/>
+                <text x={x+barW/2} y={chartH-rH-3} textAnchor="middle" fontSize={8} fill="#E52222" fontWeight="bold">
+                  {teamWeekXP.red[w]||""}
+                </text>
+                <rect x={x+barW+2} y={chartH-gH} width={barW} height={gH} fill="#2DAD3F" rx={2}/>
+                <text x={x+barW+2+barW/2} y={chartH-gH-3} textAnchor="middle" fontSize={8} fill="#2DAD3F" fontWeight="bold">
+                  {teamWeekXP.green[w]||""}
+                </text>
+                <text x={x+barW+1} y={chartH+12} textAnchor="middle" fontSize={9} fill={w===curWeek?"#E07800":"#666"} fontWeight={w===curWeek?"bold":"normal"}>
+                  W{w}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+        <div style={{display:"flex",gap:16,fontSize:11,marginTop:4}}>
+          <span><span style={{color:"#E52222"}}>■</span> 紅隊</span>
+          <span><span style={{color:"#2DAD3F"}}>■</span> 綠隊</span>
+        </div>
+      </div>
+
+      {/* Individual Ranking */}
+      <div style={{background:"#fff",border:"3px solid #000",padding:14,marginBottom:16,boxShadow:"4px 4px 0 #000"}}>
+        <div style={{fontWeight:900,fontSize:13,marginBottom:12}}>🏆 個人戰力排名</div>
+        {[...users].filter(u=>u.setupDone).sort((a,b)=>(userXP[b.id]||0)-(userXP[a.id]||0)).map((u,i) => {
+          const xp = userXP[u.id]||0;
+          const maxXpU = Math.max(...users.filter(x=>x.setupDone).map(x=>userXP[x.id]||0), 1);
+          const pct = Math.max((xp/maxXpU)*100, 0);
+          const medals = ["🥇","🥈","🥉"];
+          const isRed = u.team==="red";
+          return (
+            <div key={u.id} style={{marginBottom:10}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:12,marginBottom:4}}>
+                <span style={{fontWeight:700}}>{medals[i]||`#${i+1}`} {u.name}{u.realName?` (${u.realName})`:""}</span>
+                <span style={{fontWeight:900,color:isRed?"#E52222":"#2DAD3F"}}>{xp} XP</span>
+              </div>
+              <div style={{height:10,background:"#f0f0f0",border:"1px solid #ddd",borderRadius:2,overflow:"hidden"}}>
+                <div style={{height:"100%",width:`${pct}%`,background:isRed?"#E52222":"#2DAD3F",transition:"width .3s"}}/>
+              </div>
+            </div>
+          );
+        })}
+        {users.filter(u=>!u.setupDone).length > 0 && (
+          <div style={{fontSize:11,color:"#aaa",marginTop:8}}>⏳ 尚有 {users.filter(u=>!u.setupDone).length} 人未完成設定</div>
+        )}
+      </div>
+
+      {/* Task Distribution */}
+      <div style={{background:"#fff",border:"3px solid #000",padding:14,boxShadow:"4px 4px 0 #000"}}>
+        <div style={{fontWeight:900,fontSize:13,marginBottom:12}}>📊 任務提交分佈（全期）</div>
+        {TASKS.map(t => {
+          const cnt = taskCounts[t.id]||0;
+          const pct = Math.max((cnt/maxTaskCnt)*100, 0);
+          const totalSubs = subs.length;
+          const ratioTxt = totalSubs ? `${((cnt/totalSubs)*100).toFixed(0)}%` : "0%";
+          return (
+            <div key={t.id} style={{marginBottom:10}}>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:4}}>
+                <span>{t.emoji} {t.label}</span>
+                <span style={{fontWeight:700}}>{cnt} 筆 <span style={{fontWeight:400,color:"#888"}}>({ratioTxt})</span></span>
+              </div>
+              <div style={{height:10,background:"#f0f0f0",border:"1px solid #ddd",borderRadius:2,overflow:"hidden"}}>
+                <div style={{height:"100%",width:`${pct}%`,background:t.color,transition:"width .3s"}}/>
+              </div>
+            </div>
+          );
+        })}
+        <div style={{fontSize:11,color:"#888",marginTop:8,textAlign:"right"}}>共 {subs.length} 筆提交記錄</div>
+      </div>
     </div>
   );
 }

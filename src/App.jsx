@@ -1340,7 +1340,7 @@ function AdminTab({users, saveUsers, subs, saveSubs, weekBonuses, getBonus, save
   return (
     <div>
       <div style={{background:"#E52222",color:"#fff",border:"3px solid #000",padding:"10px 16px",marginBottom:14,fontWeight:900}}>👑 管理者後台 — 謹慎操作</div>
-      <div style={{display:"flex",gap:0,border:"2px solid #000",marginBottom:16,overflow:"hidden"}}>
+      <div style={{display:"flex",flexWrap:"wrap",gap:0,border:"2px solid #000",marginBottom:16,overflow:"visible"}}>
         {adTabs.map(t=>(
           <button key={t.id} onClick={()=>setSub(t.id)} style={{flex:1,padding:"10px 8px",border:"none",borderRight:"2px solid #ccc",cursor:"pointer",fontWeight:700,fontSize:12,fontFamily:"'Noto Sans TC',sans-serif",background:sub===t.id?"#1A1A2E":"#fff",color:sub===t.id?"#F8C500":"#000"}}>{t.label}</button>
         ))}

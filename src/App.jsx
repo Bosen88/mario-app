@@ -1336,7 +1336,7 @@ function AdminTab({users, saveUsers, subs, saveSubs, weekBonuses, getBonus, save
   })();
   const nextWeek = Math.min(curWeek + 1, WEEKS.length);
 
-  const adTabs = [{id:"members",label:"成員管理"},{id:"add",label:"新增成員"},{id:"subs",label:"所有記錄"},{id:"rng",label:"🎲 RNG Buff"},{id:"backup",label:"💾 備份"}];
+  const adTabs = [{id:"members",label:"成員管理"},{id:"add",label:"新增成員"},{id:"subs",label:"所有記錄"},{id:"rng",label:"🎲RNG"},{id:"backup",label:"💾備份"},{id:"adjust",label:"📝調分"}];
   return (
     <div>
       <div style={{background:"#E52222",color:"#fff",border:"3px solid #000",padding:"10px 16px",marginBottom:14,fontWeight:900}}>👑 管理者後台 — 謹慎操作</div>
@@ -1489,6 +1489,10 @@ function AdminTab({users, saveUsers, subs, saveSubs, weekBonuses, getBonus, save
             <input type="file" accept=".json" onChange={restoreData} style={{display:"block",width:"100%",padding:10,border:"3px solid #E52222",boxSizing:"border-box",fontSize:13}} />
           </div>
         </div>
+      )}
+
+      {sub==="adjust" && (
+        <AdjustTab users={users} subs={subs} saveSubs={saveSubs} showToast={showToast} sfx={sfx} />
       )}
     </div>
   );

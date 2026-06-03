@@ -1495,6 +1495,199 @@ function AdminTab({users, saveUsers, subs, saveSubs, weekBonuses, getBonus, save
 }
 
 // ══════════════════════════════════════════
+// AdjustTab — 管理者調分工具
+// ══════════════════════════════════════════
+function AdjustTab({users, subs, saveSubs, showToast, sfx}) {
+  const [filterUser, setFilterUser] = useState("all");
+  const [filterWeek, setFilterWeek] = useState("all");
+  const [editId, setEditId] = useState(null);
+  const [editXP, setEditXP] = useState("");
+  const [editQty, setEditQty] = useState("");
+  const [editTask, setEditTask] = useState("");
+  const [editWeek, setEditWeek] = useState("");
+  const [showAdd, setShowAdd] = useState(false);
+  const [addUser, setAddUser] = useState("");
+  const [addTask, setAddTask] = useState(TASKS[0]?.id||"");
+  const [addWeek, setAddWeek] = useState("1");
+  const [addXP, setAddXP] = useState("10");
+  const [addQty, setAddQty] = useState("1");
+  const [busy, setBusy] = useState(false);
+
+  const filtered = subs.filter(s =>
+    (filterUser==="all" || s.userId===filterUser) &&
+    (filterWeek==="all" || String(s.week)===filterWeek)
+  ).sort((a,b)=>b.ts.localeCompare(a.ts));
+
+  const startEdit = s => {
+    setEditId(s.id);
+    setEditXP(String(s.xp));
+    setEditQty(String(s.qty||1));
+    setEditTask(s.taskId);
+    setEditWeek(String(s.week));
+  };
+
+  const saveEdit = async () => {
+    setBusy(true);
+    const next = subs.map(s => s.id===editId ? {
+      ...s,
+      taskId: editTask,
+      week: Number(editWeek),
+      xp: Number(editXP),
+      qty: Number(editQty),
+      adminEdited: true,
+      editedAt: new Date().toISOString()
+    } : s);
+    await saveSubs(next);
+    sfx.coin(); showToast("✅ 記錄已更新"); setEditId(null); setBusy(false);
+  };
+
+  const deleteSub = async (id) => {
+    if (!window.confirm("確定刪除這筆記錄？")) return;
+    setBusy(true);
+    await saveSubs(subs.filter(s=>s.id!==id));
+    sfx.error(); showToast("已刪除記錄","err"); setBusy(false);
+  };
+
+  const submitAdd = async () => {
+    if (!addUser) { showToast("請選擇成員","err"); return; }
+    const u = users.find(x=>x.id===addUser);
+    if (!u) { showToast("找不到成員","err"); return; }
+    setBusy(true);
+    const entry = {
+      id: Date.now()+"_admin",
+      userId: addUser,
+      taskId: addTask,
+      week: Number(addWeek),
+      ts: new Date().toISOString(),
+      xp: Number(addXP),
+      qty: Number(addQty),
+      adminAdded: true
+    };
+    await saveSubs([...subs, entry]);
+    sfx.levelUp(); showToast(`✅ 已為 ${u.name} 新增 ${addXP} XP`); setShowAdd(false); setBusy(false);
+  };
+
+  const getUserName = uid => {
+    const u = users.find(x=>x.id===uid);
+    return u ? u.name : uid;
+  };
+
+  return (
+    <div>
+      <div style={{background:"#FFF9E0",border:"3px solid #F8C500",padding:14,marginBottom:16,boxShadow:"4px 4px 0 #F8C500"}}>
+        <div style={{fontWeight:900,fontSize:14,marginBottom:4}}>📝 調整分數 / 補登記錄</div>
+        <div style={{fontSize:11,color:"#888"}}>可以針對過去記錄修改分數，或為忘記上傳的成員補登。原始數據不會被改動，只有選擇編輯的那筆才會更新。</div>
+      </div>
+
+      {/* Add new entry */}
+      <button onClick={()=>setShowAdd(v=>!v)} style={{width:"100%",background: showAdd ? "#E52222" : "#2DAD3F",color:"#fff",border:"3px solid #000",padding:"10px 0",cursor:"pointer",fontWeight:900,fontSize:13,boxShadow:"3px 3px 0 #000",marginBottom:12}}>
+        {showAdd ? "✕ 取消新增" : "➕ 新增記錄（補登）"}
+      </button>
+
+      {showAdd && (
+        <div style={{background:"#fff",border:"3px solid #000",padding:16,marginBottom:16,boxShadow:"4px 4px 0 #000"}}>
+          <div style={{fontWeight:900,marginBottom:12}}>➕ 補登記錄</div>
+          <select value={addUser} onChange={e=>setAddUser(e.target.value)} style={{display:"block",width:"100%",padding:8,border:"2px solid #000",marginBottom:8,fontSize:13}}>
+            <option value="">選擇成員</option>
+            {users.filter(u=>u.setupDone).sort((a,b)=>a.name.localeCompare(b.name,"zh")).map(u=>(
+              <option key={u.id} value={u.id}>{u.name}（{u.team==="red"?"紅":"綠"}隊）</option>
+            ))}
+          </select>
+          <select value={addTask} onChange={e=>setAddTask(e.target.value)} style={{display:"block",width:"100%",padding:8,border:"2px solid #000",marginBottom:8,fontSize:13}}>
+            {TASKS.map(t=><option key={t.id} value={t.id}>{t.emoji} {t.label}</option>)}
+          </select>
+          <div style={{display:"flex",gap:8,marginBottom:8}}>
+            <div style={{flex:1}}>
+              <div style={{fontSize:11,color:"#888",marginBottom:3}}>週次</div>
+              <select value={addWeek} onChange={e=>setAddWeek(e.target.value)} style={{width:"100%",padding:8,border:"2px solid #000",fontSize:13}}>
+                {WEEKS.map(w=><option key={w.week} value={String(w.week)}>W{w.week}</option>)}
+              </select>
+            </div>
+            <div style={{flex:1}}>
+              <div style={{fontSize:11,color:"#888",marginBottom:3}}>XP 分數</div>
+              <input type="number" value={addXP} onChange={e=>setAddXP(e.target.value)} style={{width:"100%",padding:8,border:"2px solid #000",fontSize:13,boxSizing:"border-box"}} />
+            </div>
+            <div style={{flex:1}}>
+              <div style={{fontSize:11,color:"#888",marginBottom:3}}>數量</div>
+              <input type="number" value={addQty} onChange={e=>setAddQty(e.target.value)} min="1" style={{width:"100%",padding:8,border:"2px solid #000",fontSize:13,boxSizing:"border-box"}} />
+            </div>
+          </div>
+          <button onClick={submitAdd} disabled={busy} style={{width:"100%",background:"#1A1A2E",color:"#F8C500",border:"3px solid #000",padding:10,cursor:busy?"not-allowed":"pointer",fontWeight:900,fontSize:13,boxShadow:"3px 3px 0 #000"}}>
+            {busy ? "儲存中…" : "✅ 確認補登"}
+          </button>
+        </div>
+      )}
+
+      {/* Filters */}
+      <div style={{display:"flex",gap:8,marginBottom:12}}>
+        <select value={filterUser} onChange={e=>setFilterUser(e.target.value)} style={{flex:2,padding:8,border:"2px solid #000",fontSize:12}}>
+          <option value="all">所有成員</option>
+          {users.filter(u=>u.setupDone).sort((a,b)=>a.name.localeCompare(b.name,"zh")).map(u=>(
+            <option key={u.id} value={u.id}>{u.name}</option>
+          ))}
+        </select>
+        <select value={filterWeek} onChange={e=>setFilterWeek(e.target.value)} style={{flex:1,padding:8,border:"2px solid #000",fontSize:12}}>
+          <option value="all">所有週</option>
+          {WEEKS.map(w=><option key={w.week} value={String(w.week)}>W{w.week}</option>)}
+        </select>
+      </div>
+
+      <div style={{fontSize:11,color:"#888",marginBottom:8}}>顯示 {filtered.length} 筆記錄</div>
+
+      {/* Records list */}
+      {filtered.map(s => {
+        const task = TASKS.find(t=>t.id===s.taskId);
+        const isEdit = editId===s.id;
+        return (
+          <div key={s.id} style={{border:`2px solid ${s.adminAdded?"#2DAD3F":s.adminEdited?"#1565C0":"#ddd"}`,padding:"10px 12px",marginBottom:8,background:isEdit?"#FFF9E0":"#fff",boxShadow:isEdit?"3px 3px 0 #F8C500":"none"}}>
+            {!isEdit ? (
+              <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                <span style={{fontSize:16}}>{task?.emoji||"❓"}</span>
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:700,fontSize:12}}>{getUserName(s.userId)} · {task?.label||s.taskId}</div>
+                  <div style={{fontSize:10,color:"#888"}}>W{s.week} · {s.xp}XP · ×{s.qty||1} {s.adminAdded?"🟢補登":s.adminEdited?"🔵已改":""}</div>
+                </div>
+                <button onClick={()=>startEdit(s)} style={{padding:"4px 10px",border:"2px solid #1565C0",color:"#1565C0",background:"#fff",cursor:"pointer",fontSize:12,fontWeight:700}}>✏️</button>
+                <button onClick={()=>deleteSub(s.id)} disabled={busy} style={{padding:"4px 10px",border:"2px solid #E52222",color:"#E52222",background:"#fff",cursor:"pointer",fontSize:12,fontWeight:700}}>🗑️</button>
+              </div>
+            ) : (
+              <div>
+                <div style={{fontWeight:700,fontSize:12,marginBottom:8}}>✏️ 編輯：{getUserName(s.userId)}</div>
+                <select value={editTask} onChange={e=>setEditTask(e.target.value)} style={{display:"block",width:"100%",padding:8,border:"2px solid #000",marginBottom:8,fontSize:12}}>
+                  {TASKS.map(t=><option key={t.id} value={t.id}>{t.emoji} {t.label}</option>)}
+                </select>
+                <div style={{display:"flex",gap:8,marginBottom:8}}>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:10,color:"#888",marginBottom:2}}>週次</div>
+                    <select value={editWeek} onChange={e=>setEditWeek(e.target.value)} style={{width:"100%",padding:6,border:"2px solid #000",fontSize:12}}>
+                      {WEEKS.map(w=><option key={w.week} value={String(w.week)}>W{w.week}</option>)}
+                    </select>
+                  </div>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:10,color:"#888",marginBottom:2}}>XP 分數</div>
+                    <input type="number" value={editXP} onChange={e=>setEditXP(e.target.value)} style={{width:"100%",padding:6,border:"2px solid #000",fontSize:12,boxSizing:"border-box"}} />
+                  </div>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:10,color:"#888",marginBottom:2}}>數量</div>
+                    <input type="number" value={editQty} onChange={e=>setEditQty(e.target.value)} min="1" style={{width:"100%",padding:6,border:"2px solid #000",fontSize:12,boxSizing:"border-box"}} />
+                  </div>
+                </div>
+                <div style={{display:"flex",gap:8}}>
+                  <button onClick={saveEdit} disabled={busy} style={{flex:1,background:"#1A1A2E",color:"#F8C500",border:"2px solid #F8C500",padding:"8px 0",cursor:busy?"not-allowed":"pointer",fontWeight:900,fontSize:13}}>
+                    {busy?"儲存中…":"✅ 儲存"}
+                  </button>
+                  <button onClick={()=>setEditId(null)} style={{padding:"8px 16px",border:"2px solid #ccc",background:"#fff",cursor:"pointer",fontSize:12}}>取消</button>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════
 // 共用元件
 // ══════════════════════════════════════════
 function Card({title, children}) {
